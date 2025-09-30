@@ -1,17 +1,11 @@
 name: twinkly-switch
 components:
   - id: main
+    label: Main
     capabilities:
-      - switch
+      - id: switch
+        version: 1
     categories:
-      - Switch
-preferences:
-  - name: pollInterval
-    title: "Polling interval (seconds)"
-    description: "How often to check the Twinkly state"
-    required: true
-    preferenceType: number
-    definition:
-      minimum: 5
-      maximum: 3600
-      default: 30
+      - name: Switch
+        subcategories:
+          - name: Light
