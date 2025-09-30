@@ -1,2 +1,26 @@
-.st-edge/
+# Node
 node_modules/
+npm-debug.log*
+package-lock.json
+
+# LuaRocks (if you experiment with Lua modules locally)
+*.rock
+*.rockspec
+
+# SmartThings Edge driver build artifacts
+.stedge/
+*.pkg
+
+# Local testing
+tests/
+*.log
+*.tmp
+
+# macOS
+.DS_Store
+
+# IDEs/editors
+.vscode/
+.idea/
+*.swp
+*.swo
