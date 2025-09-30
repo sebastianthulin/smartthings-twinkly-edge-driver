@@ -12,15 +12,6 @@ This driver is only tested on the following products:
 - Polling to keep state updated (configurable interval)
 - Local test harness using Lua 5.4 or newer
 
-## Files
-- `init.lua` - driver entrypoint
-- `twinkly.lua` - Twinkly LAN API wrapper (login, set_mode, get_mode)
-- `test.lua` - local test script to call Twinkly directly
-- `config.yml` - driver metadata
-- `profiles/twinkly-switch.yml` - device profile and preferences
-- `package.json` - helper npm scripts
-- `README.md` - this file
-
 ## Quickstart
 
 ### Prerequisites
