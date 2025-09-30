@@ -2,6 +2,10 @@
 
 This repository contains a SmartThings Edge driver for controlling Twinkly lights over the local LAN.
 
+## Compability
+This driver is only tested on the following products: 
+- TWKP200RGB-G [Twinkly Candies / Pearl]
+
 ## Features
 - Auto-discovery via Twinkly UDP broadcasts (port 5555)
 - Switch capability (on = movie mode, off = off)
