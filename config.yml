@@ -1,0 +1,4 @@
+name: "Twinkly Edge"
+packageKey: "twinkly.edge"
+permissions:
+  lan: {}
