@@ -32,6 +32,30 @@ IP=192.168.1.45 npm run test:on
 IP=192.168.1.45 npm run test:off
 IP=192.168.1.45 npm run test:get
 ```
+#### Install LUA
+For local testing, you need **Lua 5.3** (the default `brew install lua` gives 5.4, which may cause issues).  
+
+Install via Homebrew:
+```bash
+brew install lua@5.3
+```
+
+Link it so `lua` points to version 5.3:
+```bash
+brew link lua@5.3 --force
+```
+
+Verify the installation:
+```bash
+lua -v
+```
+
+Expected output:
+```
+Lua 5.3.6  Copyright (C) 1994-2020 Lua.org, PUC-Rio
+```
+
+
 
 ### Build & publish
 Package the driver:
