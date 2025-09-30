@@ -5,8 +5,7 @@
     "check:lua": "command -v lua >/dev/null 2>&1 || (echo 'Lua not installed. Install Lua 5.3 first.' && exit 1)",
     "build": "smartthings edge:drivers:package .",
     "channels": "smartthings edge:channels:create -i channel.json",
-    "enroll": "smartthings edge:channels:enroll $CHANNEL --hub $HUB",
-    "publish": "smartthings edge:drivers:publish $DRIVER --channel $CHANNEL",
+    "publish": "smartthings edge:channels:drivers:assign <CHANNEL_ID> <DRIVER_ID>",
     "test:on": "npm run check:lua && lua test.lua on $IP",
     "test:off": "npm run check:lua && lua test.lua off $IP",
     "test:get": "npm run check:lua && lua test.lua get $IP"

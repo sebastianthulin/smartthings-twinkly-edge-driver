@@ -1,6 +1,7 @@
 # Twinkly Edge Driver
-
 This repository contains a SmartThings Edge driver for controlling Twinkly lights over the local LAN.
+
+Channel Link: https://callaway.smartthings.com/channels/912e7705-ec88-413c-a3ac-1c5ecd9015ba
 
 ## Compability
 This driver is only tested on the following products: 
