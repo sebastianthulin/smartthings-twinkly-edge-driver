@@ -1,0 +1,6 @@
+{
+  "name": "Twinkly Edge",
+  "description": "Control Twinkly Lights",
+  "type": "DRIVER",
+  "termsOfServiceUrl": "https://github.com/sebastianthulin/smartthings-twinkly-edge-driver"
+}
