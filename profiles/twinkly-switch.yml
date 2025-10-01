@@ -1,11 +1,21 @@
 name: twinkly-switch
 components:
   - id: main
-    label: Main
     capabilities:
       - id: switch
         version: 1
+      - id: refresh
+        version: 1
     categories:
-      - name: Switch
-        subcategories:
-          - name: Light
+      - name: Light
+
+preferences:
+  - name: ipAddress
+    title: "Device IP Address"
+    description: "Enter the local IP of your Twinkly light (e.g. 192.168.1.50)"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 7
+      maxLength: 15

@@ -4,24 +4,51 @@ local log = require "log"
 local socket = require "socket"
 local twinkly = require "twinkly"
 
+-- helper to resolve IP address
+local function resolve_ip(device, explicit_ip)
+  if explicit_ip and explicit_ip ~= "" then
+    return explicit_ip
+  else
+    return device.preferences.ipAddress
+  end
+end
+
 -- switch handlers
 local function switch_on(driver, device, command)
-  log.info("ON -> " .. (device.device_network_id or "?"))
-  twinkly.set_mode(device.device_network_id, "movie")
+  local ip = resolve_ip(device)
+  log.info("ON -> " .. (ip or "?"))
+  twinkly.set_mode(ip, "movie")
   device:emit_event(caps.switch.switch.on())
 end
 
 local function switch_off(driver, device, command)
-  log.info("OFF -> " .. (device.device_network_id or "?"))
-  twinkly.set_mode(device.device_network_id, "off")
+  local ip = resolve_ip(device)
+  log.info("OFF -> " .. (ip or "?"))
+  twinkly.set_mode(ip, "off")
   device:emit_event(caps.switch.switch.off())
+end
+
+local function handle_refresh(driver, device, command)
+  local ip = resolve_ip(device)
+  log.info("REFRESH -> " .. (ip or "?"))
+  local ok, mode = pcall(twinkly.get_mode, ip)
+  if not ok then
+    log.warn("Failed to refresh " .. (ip or "?"))
+    return
+  end
+  if mode == "movie" then
+    device:emit_event(caps.switch.switch.on())
+  elseif mode == "off" then
+    device:emit_event(caps.switch.switch.off())
+  end
 end
 
 -- poll state from Twinkly
 local function poll_state(driver, device)
-  local ok, mode = pcall(twinkly.get_mode, device.device_network_id)
+  local ip = resolve_ip(device)
+  local ok, mode = pcall(twinkly.get_mode, ip)
   if not ok then
-    log.warn("Failed to poll " .. (device.device_network_id or "?"))
+    log.warn("Failed to poll " .. (ip or "?"))
     return
   end
   if mode == "movie" then
@@ -92,6 +119,9 @@ local twinkly_driver = Driver("twinkly", {
     [caps.switch.ID] = {
       [caps.switch.commands.on.NAME] = switch_on,
       [caps.switch.commands.off.NAME] = switch_off,
+    },
+    [caps.refresh.ID] = {
+      [caps.refresh.commands.refresh.NAME] = handle_refresh,
     }
   }
 })
