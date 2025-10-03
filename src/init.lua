@@ -84,6 +84,12 @@ local function device_init(driver, device)
   end
 end
 
+local function device_added(driver, device)
+  log.info("Device added: " .. (device.device_network_id or "unknown"))
+  device:emit_event(caps.switch.switch.off())
+  log.info("Placeholder Twinkly device created. Please set the IP address in preferences.")
+end
+
 local function device_info_changed(driver, device)
   device_init(driver, device)
 end
@@ -144,7 +150,7 @@ end
 
 local twinkly_driver = Driver("twinkly", {
   discovery = discovery,
-  lifecycle_handlers = { init = device_init, infoChanged = device_info_changed },
+  lifecycle_handlers = { init = device_init, added = device_added, infoChanged = device_info_changed },
   capability_handlers = {
     [caps.switch.ID] = {
       [caps.switch.commands.on.NAME] = switch_on,
