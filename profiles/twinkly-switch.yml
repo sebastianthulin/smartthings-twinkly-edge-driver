@@ -4,6 +4,7 @@ components:
     capabilities:
       - id: switch
         version: 1
+        default: true
       - id: refresh
         version: 1
     categories:
@@ -13,9 +14,15 @@ preferences:
   - name: ipAddress
     title: "Device IP Address"
     description: "Enter the local IP of your Twinkly light (e.g. 192.168.1.50)"
-    required: true
+    required: false
     preferenceType: string
     definition:
       stringType: text
+      pattern: "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"
       minLength: 7
       maxLength: 15
+
+metadata:
+  vid: generic-switch
+  mnmn: SmartThingsCommunity
+  defaultComponentId: main

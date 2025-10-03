@@ -1,7 +1,0 @@
-- id: "twinkly/lan"
-  deviceProfileName: twinkly-switch
-  deviceType: LAN
-  deviceNetworkType: LAN
-  vendorLabel: "Twinkly Edge Light"
-  manufacturer: "Twinkly"
-  model: "TWKP200RGB-G"
