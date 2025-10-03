@@ -1,7 +1,9 @@
-local http = require "socket.http"
+local cosock = require "cosock"
+local http = cosock.asyncify("socket.http")
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local login = require "twinkly.login"
+local log = require "log"
 
 local control = {}
 
@@ -25,6 +27,7 @@ function control.set_mode(ip, mode)
 
   local resp_body = table.concat(resp)
   if not res or code ~= 200 then
+    log.warn("Failed to set mode on " .. tostring(ip) .. ": " .. tostring(status) .. " Body: " .. resp_body)
     return nil, "Failed to set mode: " .. tostring(status) .. " Body: " .. resp_body
   end
 
