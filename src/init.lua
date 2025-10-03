@@ -1,67 +1,78 @@
 local Driver = require "st.driver"
 local caps = require "st.capabilities"
 local log = require "log"
-local socket = require "socket"
 local json = require "dkjson" -- Twinkly UDP payload is JSON
 local twinkly = require "twinkly"
 
--- helper to resolve IP address
-local function resolve_ip(device, explicit_ip)
-  if explicit_ip and explicit_ip ~= "" then
-    return explicit_ip
-  else
-    return device.preferences.ipAddress or device:get_field("ipAddress")
-  end
+-- helper to resolve IP address: only use stored device field (persisted)
+local function resolve_ip(device)
+  return device:get_field("ipAddress")
 end
 
 -- switch handlers
 local function switch_on(driver, device, command)
   local ip = resolve_ip(device)
-  log.info("ON -> " .. (ip or "?"))
-  if ip then
-    twinkly.set_mode(ip, "movie")
-    device:emit_event(caps.switch.switch.on())
+  log.info("ON -> " .. tostring(ip or "?"))
+  if ip and ip ~= "" then
+    local ok, err = pcall(twinkly.set_mode, ip, "movie")
+    if ok then
+      device:emit_event(caps.switch.switch.on())
+    else
+      log.warn("set_mode failed: " .. tostring(err))
+    end
+  else
+    log.warn("No IP configured for device " .. tostring(device.label))
   end
 end
 
 local function switch_off(driver, device, command)
   local ip = resolve_ip(device)
-  log.info("OFF -> " .. (ip or "?"))
-  if ip then
-    twinkly.set_mode(ip, "off")
-    device:emit_event(caps.switch.switch.off())
+  log.info("OFF -> " .. tostring(ip or "?"))
+  if ip and ip ~= "" then
+    local ok, err = pcall(twinkly.set_mode, ip, "off")
+    if ok then
+      device:emit_event(caps.switch.switch.off())
+    else
+      log.warn("set_mode failed: " .. tostring(err))
+    end
+  else
+    log.warn("No IP configured for device " .. tostring(device.label))
   end
 end
 
 local function handle_refresh(driver, device, command)
   local ip = resolve_ip(device)
-  log.info("REFRESH -> " .. (ip or "?"))
-  if not ip then return end
-  local ok, mode = pcall(twinkly.get_mode, ip)
-  if ok then
-    if mode == "movie" then
+  log.info("REFRESH -> " .. tostring(ip or "?"))
+  if not ip or ip == "" then
+    log.warn("No IP to refresh for device " .. tostring(device.label))
+    return
+  end
+  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
+  if ok and mode_or_err then
+    local raw = mode_or_err
+    if raw ~= "off" then
       device:emit_event(caps.switch.switch.on())
-    elseif mode == "off" then
+    else
       device:emit_event(caps.switch.switch.off())
     end
   else
-    log.warn("Failed to refresh " .. (ip or "?"))
+    log.warn("Failed to refresh " .. tostring(ip) .. ": " .. tostring(mode_or_err))
   end
 end
 
 -- poll state from Twinkly
 local function poll_state(driver, device)
   local ip = resolve_ip(device)
-  if not ip then return end
-  local ok, mode = pcall(twinkly.get_mode, ip)
-  if ok then
-    if mode == "movie" then
+  if not ip or ip == "" then return end
+  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
+  if ok and mode_or_err then
+    if mode_or_err ~= "off" then
       device:emit_event(caps.switch.switch.on())
-    elseif mode == "off" then
+    else
       device:emit_event(caps.switch.switch.off())
     end
   else
-    log.warn("Failed to poll " .. (ip or "?"))
+    log.warn("Failed to poll " .. tostring(ip) .. ": " .. tostring(mode_or_err))
   end
 end
 
@@ -76,8 +87,8 @@ local function device_init(driver, device)
     device:set_field("poll_timer", nil)
   end
 
-  -- schedule polling according to preference (seconds)
-  local interval = tonumber(device.preferences.pollInterval) or 30
+  -- schedule polling according to persisted field (seconds)
+  local interval = tonumber(device:get_field("pollInterval")) or 30
   if interval >= 5 then
     local timer = driver.call_on_schedule(driver, interval, function() poll_state(driver, device) end)
     device:set_field("poll_timer", timer)
@@ -87,10 +98,27 @@ end
 local function device_added(driver, device)
   log.info("Device added: " .. (device.device_network_id or "unknown"))
   device:emit_event(caps.switch.switch.off())
+  -- ensure persisted fields exist
+  if not device:get_field("ipAddress") then
+    device:set_field("ipAddress", "", { persist = true })
+  end
+  if not device:get_field("pollInterval") then
+    device:set_field("pollInterval", 30, { persist = true })
+  end
   log.info("Placeholder Twinkly device created. Please set the IP address in preferences.")
 end
 
 local function device_info_changed(driver, device)
+  -- persist preference values to fields so runtime uses fields only
+  local pref_ip = device.preferences and device.preferences.ipAddress
+  if pref_ip and pref_ip ~= "" then
+    device:set_field("ipAddress", pref_ip, { persist = true })
+  end
+  local pref_poll = device.preferences and device.preferences.pollInterval
+  if pref_poll and tonumber(pref_poll) then
+    device:set_field("pollInterval", tonumber(pref_poll), { persist = true })
+  end
+
   device_init(driver, device)
 end
 
@@ -100,7 +128,7 @@ local function discovery(driver, opts, cons)
 
   -- Check if there is already an unconfigured placeholder
   for _, dev in pairs(driver:get_devices()) do
-    local ip = dev.preferences.ipAddress
+    local ip = dev:get_field("ipAddress")
     if not ip or ip == "" then
       log.info("Unconfigured placeholder exists (" .. dev.device_network_id .. "), skipping new one")
       return
