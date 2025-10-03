@@ -53,6 +53,8 @@ brew install luarocks
 luarocks install luasocket
 luarocks install dkjson
 luarocks install luaossl
+luarocks install cosock
+luarocks install log
 ```
 
 ### Build & publish

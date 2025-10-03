@@ -1,8 +1,16 @@
 local Driver = require "st.driver"
 local caps = require "st.capabilities"
-local log = require "log"
 local json = require "dkjson" -- Twinkly UDP payload is JSON
 local twinkly = require "twinkly"
+local ok, log = pcall(require, "log")
+if not ok then
+  log = {
+    debug = function(...) print("[DEBUG]", ...) end,
+    info  = function(...) print("[INFO]", ...) end,
+    warn  = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
 
 -- helper to resolve IP address: only use stored device field (persisted)
 local function resolve_ip(device)
@@ -14,14 +22,13 @@ local function switch_on(driver, device, command)
   local ip = resolve_ip(device)
   log.info("ON -> " .. tostring(ip or "?"))
   if ip and ip ~= "" then
-    local ok, err = pcall(twinkly.set_mode, ip, "movie")
+    local ok, result = pcall(twinkly.set_mode, ip, "movie")
     if ok then
+      log.info("set_mode returned OK: " .. tostring(result))
       device:emit_event(caps.switch.switch.on())
     else
-      log.warn("set_mode failed: " .. tostring(err))
+      log.error("set_mode threw error: " .. tostring(result))
     end
-  else
-    log.warn("No IP configured for device " .. tostring(device.label))
   end
 end
 
@@ -29,14 +36,13 @@ local function switch_off(driver, device, command)
   local ip = resolve_ip(device)
   log.info("OFF -> " .. tostring(ip or "?"))
   if ip and ip ~= "" then
-    local ok, err = pcall(twinkly.set_mode, ip, "off")
+    local ok, result = pcall(twinkly.set_mode, ip, "off")
     if ok then
+      log.info("set_mode returned OK: " .. tostring(result))
       device:emit_event(caps.switch.switch.off())
     else
-      log.warn("set_mode failed: " .. tostring(err))
+      log.error("set_mode threw error: " .. tostring(result))
     end
-  else
-    log.warn("No IP configured for device " .. tostring(device.label))
   end
 end
 

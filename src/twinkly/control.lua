@@ -1,9 +1,16 @@
-local cosock = require "cosock"
-local http = cosock.asyncify("socket.http")
+local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local login = require "twinkly.login"
-local log = require "log"
+local ok, log = pcall(require, "log")
+if not ok then
+  log = {
+    debug = function(...) print("[DEBUG]", ...) end,
+    info  = function(...) print("[INFO]", ...) end,
+    warn  = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
 
 local control = {}
 
