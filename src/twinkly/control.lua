@@ -8,8 +8,12 @@ local log = require "log"
 local control = {}
 
 function control.set_mode(ip, mode)
+  log.debug("Sending set_mode=" .. tostring(mode) .. " to " .. tostring(ip))
   local token, err = login.ensure_token(ip)
-  if not token then return nil, "No token: " .. tostring(err) end
+  if not token then
+    log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
+    return nil, err
+  end
 
   local body = json.encode({ mode = mode })
   local resp = {}
@@ -26,6 +30,8 @@ function control.set_mode(ip, mode)
   }
 
   local resp_body = table.concat(resp)
+  log.debug("HTTP response code=" .. tostring(code) .. " body=" .. tostring(resp_body))
+
   if not res or code ~= 200 then
     log.warn("Failed to set mode on " .. tostring(ip) .. ": " .. tostring(status) .. " Body: " .. resp_body)
     return nil, "Failed to set mode: " .. tostring(status) .. " Body: " .. resp_body

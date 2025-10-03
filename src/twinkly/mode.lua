@@ -23,6 +23,8 @@ function mode.get_mode(ip)
   }
 
   local body = table.concat(resp)
+  log.debug("Response code=" .. tostring(code) .. " body=" .. tostring(body))
+
   if not res or code ~= 200 then
     return nil, "Failed to get mode: " .. tostring(status) .. " Body: " .. body
   end
