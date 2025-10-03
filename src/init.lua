@@ -94,58 +94,32 @@ local function device_info_changed(driver, device)
   device_init(driver, device)
 end
 
--- discovery: listen for UDP broadcasts on 5555 for a short window
+-- discovery: adds a placeholder device if there are none unconfigured
 local function discovery(driver, opts, cons)
-  log.info("Starting Twinkly discovery...")
-  local udp = assert(socket.udp())
-  local ok, err = udp:setsockname("*", 5555)
-  if not ok then
-    log.error("Failed to bind UDP socket: " .. tostring(err))
-    return
-  end
-  udp:settimeout(0.5)
+  log.info("Twinkly discovery triggered...")
 
-  local start = os.time()
-  while os.time() - start < 10 do
-    local data, ip = udp:receivefrom()
-    if data and ip then
-      log.info("Discovered Twinkly broadcast from " .. ip)
-
-      local info = nil
-      pcall(function() info = json.decode(data) end)
-
-      local mac = info and info.mac or ip -- fallback to IP if no MAC
-      local label = "Twinkly " .. (info and info.device_name or ip)
-
-      -- prevent duplicate devices
-      local exists = false
-      for _, dev in pairs(driver:get_devices()) do
-        if dev.device_network_id == mac then
-          exists = true
-          break
-        end
-      end
-
-      if not exists then
-        log.info("Creating new device: " .. label .. " (" .. mac .. ")")
-        driver:try_create_device({
-          type = "LAN",
-          device_network_id = mac,
-          label = label,
-          profile = "twinkly-switch",
-          manufacturer = "Twinkly",
-          model = "LED",
-        })
-      else
-        log.info("Device " .. mac .. " already exists, updating IP")
-        local dev = driver:get_device_info(mac)
-        if dev then
-          dev:set_field("ipAddress", ip, { persist = true })
-        end
-      end
+  -- Check if there is already an unconfigured placeholder
+  for _, dev in pairs(driver:get_devices()) do
+    local ip = dev.preferences.ipAddress
+    if not ip or ip == "" then
+      log.info("Unconfigured placeholder exists (" .. dev.device_network_id .. "), skipping new one")
+      return
     end
   end
-  udp:close()
+
+  -- If all devices are configured, create a new placeholder
+  local placeholder_id = "twinkly-" .. tostring(os.time())
+
+  driver:try_create_device({
+    type = "LAN",
+    device_network_id = placeholder_id,
+    label = "Twinkly Placeholder (" .. placeholder_id .. ")",
+    profile = "twinkly-switch",
+    manufacturer = "Twinkly",
+    model = "LED",
+  })
+
+  log.info("Created new Twinkly placeholder: " .. placeholder_id)
 end
 
 local twinkly_driver = Driver("twinkly", {
