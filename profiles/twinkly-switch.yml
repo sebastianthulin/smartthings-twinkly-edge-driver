@@ -17,11 +17,11 @@ preferences:
     required: false
     preferenceType: string
     definition:
-      string:
-        default: ""
-        pattern: "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"
-        minLength: 7
-        maxLength: 15
+      stringType: text
+      default: "0.0.0.0"
+      pattern: "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"
+      minLength: 7
+      maxLength: 15
   - name: pollInterval
     title: "Polling Interval (seconds)"
     description: "Set the polling interval in seconds"
