@@ -15,6 +15,12 @@ end
 local login = {}
 local sessions = {}
 
+-- Clear a cached token for an IP
+function login.clear_token(ip)
+  sessions[ip] = nil
+end
+
+-- Perform login handshake
 function login.login(ip)
   if not ip then return nil, "No IP provided" end
 
@@ -71,9 +77,11 @@ function login.login(ip)
   return token
 end
 
+-- Get a valid token, retry login if needed
 function login.ensure_token(ip)
-  if sessions[ip] then
-    return sessions[ip]
+  local token = sessions[ip]
+  if token then
+    return token
   end
   return login.login(ip)
 end

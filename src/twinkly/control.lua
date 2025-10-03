@@ -14,14 +14,7 @@ end
 
 local control = {}
 
-function control.set_mode(ip, mode)
-  log.debug("Sending set_mode=" .. tostring(mode) .. " to " .. tostring(ip))
-  local token, err = login.ensure_token(ip)
-  if not token then
-    log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
-    return nil, err
-  end
-
+local function do_set_mode(ip, mode, token)
   local body = json.encode({ mode = mode })
   local resp = {}
   local res, code, _, status = http.request{
@@ -35,9 +28,32 @@ function control.set_mode(ip, mode)
     source = ltn12.source.string(body),
     sink = ltn12.sink.table(resp),
   }
+  return res, code, status, table.concat(resp)
+end
 
-  local resp_body = table.concat(resp)
+function control.set_mode(ip, mode)
+  log.debug("Sending set_mode=" .. tostring(mode) .. " to " .. tostring(ip))
+  local token, err = login.ensure_token(ip)
+  if not token then
+    log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
+    return nil, err
+  end
+
+  -- First attempt
+  local res, code, status, resp_body = do_set_mode(ip, mode, token)
   log.debug("HTTP response code=" .. tostring(code) .. " body=" .. tostring(resp_body))
+
+  -- Retry once if token is invalid
+  if code == 401 then
+    log.warn("Unauthorized (401), clearing token and retrying...")
+    login.clear_token(ip)
+    local new_token, nerr = login.ensure_token(ip)
+    if not new_token then
+      return nil, "Re-login failed: " .. tostring(nerr)
+    end
+    res, code, status, resp_body = do_set_mode(ip, mode, new_token)
+    log.debug("Retry response code=" .. tostring(code) .. " body=" .. tostring(resp_body))
+  end
 
   if not res or code ~= 200 then
     log.warn("Failed to set mode on " .. tostring(ip) .. ": " .. tostring(status) .. " Body: " .. resp_body)
