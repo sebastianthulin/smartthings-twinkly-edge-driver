@@ -14,7 +14,12 @@ end
 
 -- helper to resolve IP address: only use stored device field (persisted)
 local function resolve_ip(device)
-  return device:get_field("ipAddress")
+  local ip = device.preferences.ipAddress
+  if not ip or ip == "" then
+    log.warn("No IP address configured for device " .. (device.label or device.id))
+    return nil
+  end
+  return ip
 end
 
 -- switch handlers
