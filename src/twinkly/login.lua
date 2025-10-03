@@ -1,7 +1,9 @@
-local http = require "socket.http"
+local cosock = require "cosock"
+local http = cosock.asyncify("socket.http")
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local utils = require "twinkly.utils"
+local log = require "log"
 
 local login = {}
 local sessions = {}
@@ -24,21 +26,21 @@ function login.login(ip)
     sink = ltn12.sink.table(resp),
   }
   if not res or code ~= 200 then
+    log.warn("Login failed to " .. tostring(ip) .. ": " .. tostring(status))
     return nil, "Login failed: " .. tostring(status)
   end
 
   local body = table.concat(resp)
-  print("[login] Raw body: " .. body)
+  log.debug("[login] Raw body: " .. tostring(body))
   local decoded = json.decode(body)
   if not decoded or not decoded.authentication_token or not decoded["challenge-response"] then
     return nil, "Login response missing fields. Body: " .. body
   end
 
   local token = decoded.authentication_token
-  local challenge_resp = decoded["challenge-response"]
 
   -- Step 2: verify challenge-response
-  local verify_body = json.encode({ ["challenge-response"] = challenge_resp })
+  local verify_body = json.encode({ ["challenge-response"] = decoded["challenge-response"] })
   local vresp = {}
   local vres, vcode, _, vstatus = http.request{
     url = "http://" .. ip .. "/xled/v1/verify",
@@ -52,7 +54,7 @@ function login.login(ip)
     sink = ltn12.sink.table(vresp),
   }
   local vbody = table.concat(vresp)
-  print("[verify] Raw body: " .. vbody)
+  log.debug("[verify] Raw body: " .. tostring(vbody))
   if not vres or vcode ~= 200 then
     return nil, "Verify failed: " .. tostring(vstatus) .. " Body: " .. vbody
   end
