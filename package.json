@@ -3,14 +3,18 @@
   "version": "0.1",
   "scripts": {
     "check:lua": "command -v lua >/dev/null 2>&1 || (echo 'Lua not installed. Install Lua 5.3 first.' && exit 1)",
-
     "build": "smartthings edge:drivers:package .",
     "publish": "npm run build && smartthings edge:channels:assign $(npm run --silent driver:id) --channel 912e7705-ec88-413c-a3ac-1c5ecd9015ba",
     "deploy": "npm run publish && npm run link",
     "link": "echo 'Link: https://callaway.smartthings.com/channels/912e7705-ec88-413c-a3ac-1c5ecd9015ba'",
-
     "test:on": "npm run check:lua && lua test.lua on $IP",
     "test:off": "npm run check:lua && lua test.lua off $IP",
-    "test:get": "npm run check:lua && lua test.lua get $IP"
+    "test:get": "npm run check:lua && lua test.lua get $IP",
+    "version": "npm run version:bump && npm run version:tag",
+    "version:bump": "node scripts/bump.js",
+    "version:tag": "git add . && git commit -m \"chore(release): v$npm_package_version\" && git tag v$npm_package_version && git push && git push --tags"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
   }
 }
