@@ -119,7 +119,7 @@ function control.set_brightness(ip, level)
     return nil, "Invalid brightness level: " .. tostring(level)
   end
   
-  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/brightness", "POST", { value = level })
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/out/brightness", "POST", { value = level })
   
   if not res or code ~= 200 then
     log.warn("Failed to set brightness on " .. tostring(ip) .. ": " .. tostring(status) .. " Body: " .. resp_body)
@@ -132,7 +132,7 @@ end
 -- Get brightness
 function control.get_brightness(ip)
   log.debug("Getting brightness from " .. tostring(ip))
-  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/brightness", "GET")
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/out/brightness", "GET")
   
   if not res or code ~= 200 then
     log.warn("Failed to get brightness from " .. tostring(ip) .. ": " .. tostring(status) .. " Body: " .. resp_body)
@@ -156,6 +156,13 @@ function control.set_color_rgb(ip, red, green, blue)
      green < 0 or green > 255 or 
      blue < 0 or blue > 255 then
     return nil, "Invalid RGB values"
+  end
+  
+  -- Ensure mode is set to "color" before setting color
+  local ok, err = control.set_mode(ip, "color")
+  if not ok then
+    log.warn("Failed to set mode to color on " .. tostring(ip) .. ": " .. tostring(err))
+    return nil, "Failed to set mode to color: " .. tostring(err)
   end
   
   local res, code, status, resp_body = make_request(ip, "/xled/v1/led/color", "POST", { 
