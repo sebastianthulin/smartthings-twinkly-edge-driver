@@ -71,11 +71,12 @@ local function handle_refresh(driver, device, command)
   end
   
   -- Also refresh brightness and color if device supports it
-  if device.profile.name == "twinkly-color-light" then
+  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
     -- Get brightness
     local ok_brightness, brightness = pcall(twinkly.get_brightness, ip)
     if ok_brightness and brightness then
-      device:emit_event(caps.switchLevel.level(brightness))
+      local level = math.floor((brightness / 255) * 100)
+      device:emit_event(caps.switchLevel.level(level))
     end
     
     -- Get color
@@ -101,7 +102,7 @@ local function handle_refresh(driver, device, command)
         h = h * 60
       end
       
-      device:emit_event(caps.colorControl.hue(math.floor(h)))
+      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
       device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
     end
   end
@@ -202,11 +203,12 @@ local function poll_state(driver, device)
   end
   
   -- Also poll brightness and color if device supports it
-  if device.profile.name == "twinkly-color-light" and mode_or_err ~= "off" then
+  if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode_or_err ~= "off" then
     -- Poll brightness
     local ok_brightness, brightness = pcall(twinkly.get_brightness, ip)
     if ok_brightness and brightness then
-      device:emit_event(caps.switchLevel.level(brightness))
+      local level = math.floor((brightness / 255) * 100)
+      device:emit_event(caps.switchLevel.level(level))
     end
     
     -- Poll color
@@ -232,7 +234,7 @@ local function poll_state(driver, device)
         h = h * 60
       end
       
-      device:emit_event(caps.colorControl.hue(math.floor(h)))
+      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
       device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
     end
   end
@@ -243,7 +245,7 @@ local function device_init(driver, device)
   device:emit_event(caps.switch.switch.off())
   
   -- Initialize brightness and color for color light devices
-  if device.profile.name == "twinkly-color-light" then
+  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
     device:emit_event(caps.switchLevel.level(100))
     device:emit_event(caps.colorControl.hue(0))
     device:emit_event(caps.colorControl.saturation(100))
@@ -269,7 +271,7 @@ local function device_added(driver, device)
   device:emit_event(caps.switch.switch.off())
   
   -- Initialize brightness and color for color light devices
-  if device.profile.name == "twinkly-color-light" then
+  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
     device:emit_event(caps.switchLevel.level(100))
     device:emit_event(caps.colorControl.hue(0))
     device:emit_event(caps.colorControl.saturation(100))

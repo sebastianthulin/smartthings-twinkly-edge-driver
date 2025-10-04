@@ -32,11 +32,11 @@ preferences:
     required: false
     preferenceType: number
     definition:
-      min: 5
+      min: 1
       max: 3600
-      default: 30
+      default: 10
 
 metadata:
-  vid: generic-rgbw-color-bulb
-  mnmn: SmartThingsCommunity
+  vid: SmartThings-smartthings-RGBW_Bulb
+  mnmn: SmartThings
   defaultComponentId: main
