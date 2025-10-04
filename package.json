@@ -10,6 +10,9 @@
     "test:on": "npm run check:lua && lua test.lua on $IP",
     "test:off": "npm run check:lua && lua test.lua off $IP",
     "test:get": "npm run check:lua && lua test.lua get $IP",
+    "test:bright": "npm run check:lua && lua test.lua brightness $IP $LEVEL",
+    "test:color": "npm run check:lua && lua test.lua color $IP $HUE $SAT $VAL",
+    "test:rgb": "npm run check:lua && lua test.lua rgb $IP $RED $GREEN $BLUE",
     "version": "npm run version:bump && npm run version:tag",
     "version:bump": "node scripts/bump.js",
     "version:tag": "git add . && git commit -m \"chore(release): v$npm_package_version\" && git tag v$npm_package_version && git push && git push --tags"

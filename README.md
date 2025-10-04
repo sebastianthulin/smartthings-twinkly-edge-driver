@@ -10,6 +10,8 @@ This driver is only tested on the following products:
 ## Features
 - Auto-discovery via Twinkly UDP broadcasts (port 5555)
 - Switch capability (on = movie mode, off = off)
+- **Brightness control** (0-100% dimming via switchLevel capability)
+- **Color control** (Full RGB/HSV color setting via colorControl capability)
 - Polling to keep state updated (configurable interval)
 - Local test harness using Lua 5.4 or newer
 
@@ -27,6 +29,15 @@ Ensure `lua` is available, then run:
 IP=192.168.1.45 npm run test:on
 IP=192.168.1.45 npm run test:off
 IP=192.168.1.45 npm run test:get
+
+# Test brightness control (0-100)
+IP=192.168.1.45 LEVEL=50 npm run test:bright
+
+# Test color control (HSV: hue 0-360, saturation 0-100, value 0-100)
+IP=192.168.1.45 HUE=120 SAT=100 VAL=80 npm run test:color
+
+# Test RGB color control (RGB: 0-255 each)
+IP=192.168.1.45 RED=255 GREEN=0 BLUE=0 npm run test:rgb
 ```
 #### Install LUA
 For local testing, you need **Lua 5.4 or newer**
