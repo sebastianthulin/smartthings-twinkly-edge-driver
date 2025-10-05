@@ -1,3 +1,5 @@
+_G.IS_LOCAL_TEST = true
+
 package.path = package.path .. ";src/?.lua"
 
 local twinkly = require "twinkly"
@@ -73,7 +75,7 @@ elseif cmd == "rgb" then
   local red = tonumber(args[3]) or 255
   local green = tonumber(args[4]) or 0
   local blue = tonumber(args[5]) or 0
-  print("Setting color RGB(" .. red .. "," .. green .. "," .. blue .. ") on " .. ip)
+  print("Setting color RGB(" .. green .. "," .. red .. "," .. blue .. ") on " .. ip)
   local ok, result = pcall(twinkly.set_color_rgb, ip, red, green, blue)
   if ok then
     print("Done: " .. tostring(result))

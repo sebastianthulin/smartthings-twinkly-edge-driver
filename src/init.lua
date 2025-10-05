@@ -1,354 +1,134 @@
-local Driver = require "st.driver"
-local caps = require "st.capabilities"
-local json = require "dkjson" -- Twinkly UDP payload is JSON
-local twinkly = require "twinkly"
-local ok, log = pcall(require, "log")
-if not ok then
-  log = {
-    debug = function(...) print("[DEBUG]", ...) end,
-    info  = function(...) print("[INFO]", ...) end,
-    warn  = function(...) print("[WARN]", ...) end,
-    error = function(...) print("[ERROR]", ...) end,
+local http = require "socket.http"
+local json = require "dkjson"
+local ltn12 = require "ltn12"
+local log = require "log"
+
+local control = {}
+
+local function make_request(ip, path, method, body)
+  local url = "http://" .. ip .. path
+  local body_str = body and json.encode(body) or nil
+  local response_body = {}
+
+  local res, code, status = http.request{
+    url = url,
+    method = method,
+    headers = {
+      ["Content-Type"] = "application/json",
+      ["Content-Length"] = body_str and #body_str or 0,
+    },
+    source = body_str and ltn12.source.string(body_str) or nil,
+    sink = ltn12.sink.table(response_body),
   }
+
+  local resp_body = table.concat(response_body)
+  return res, code, status, resp_body
 end
 
--- helper to resolve IP address: only use stored device field (persisted)
-local function resolve_ip(device)
-  local ip = device.preferences.ipAddress
-  if not ip or ip == "" then
-    log.warn("No IP address configured for device " .. (device.label or device.id))
-    return nil
+function control.set_mode(ip, mode)
+  local valid_modes = { off = true, movie = true, music = true, static = true }
+  if not valid_modes[mode] then
+    log.error("Invalid mode: " .. tostring(mode))
+    return false, "Invalid mode"
   end
-  return ip
+
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/mode", "POST", { mode = mode })
+  if code ~= 200 then
+    return false, resp_body
+  end
+  return true, resp_body
 end
 
--- switch handlers
-local function switch_on(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("ON -> " .. tostring(ip or "?"))
-  if ip and ip ~= "" then
-    local ok, result = pcall(twinkly.set_mode, ip, "movie")
-    if ok then
-      log.info("set_mode returned OK: " .. tostring(result))
-      device:emit_event(caps.switch.switch.on())
-    else
-      log.error("set_mode threw error: " .. tostring(result))
-    end
+function control.get_mode(ip)
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/mode", "GET")
+  if code ~= 200 then
+    return nil, resp_body
   end
+  local data, pos, err = json.decode(resp_body)
+  if err then
+    return nil, err
+  end
+  return data.mode
 end
 
-local function switch_off(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("OFF -> " .. tostring(ip or "?"))
-  if ip and ip ~= "" then
-    local ok, result = pcall(twinkly.set_mode, ip, "off")
-    if ok then
-      log.info("set_mode returned OK: " .. tostring(result))
-      device:emit_event(caps.switch.switch.off())
-    else
-      log.error("set_mode threw error: " .. tostring(result))
-    end
+function control.set_brightness(ip, level)
+  -- level expected 0-100, convert to 0-255
+  local brightness = math.floor(level * 255 / 100)
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/brightness", "POST", { brightness = brightness })
+  if code ~= 200 then
+    return false, resp_body
   end
+  return true, resp_body
 end
 
-local function handle_refresh(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("REFRESH -> " .. tostring(ip or "?"))
-  if not ip or ip == "" then
-    log.warn("No IP to refresh for device " .. tostring(device.label))
-    return
+function control.get_brightness(ip)
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/brightness", "GET")
+  if code ~= 200 then
+    return nil, resp_body
   end
-  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
-  if ok and mode_or_err then
-    local raw = mode_or_err
-    if raw ~= "off" then
-      device:emit_event(caps.switch.switch.on())
-    else
-      device:emit_event(caps.switch.switch.off())
-    end
-  else
-    log.warn("Failed to refresh " .. tostring(ip) .. ": " .. tostring(mode_or_err))
+  local data, pos, err = json.decode(resp_body)
+  if err then
+    return nil, err
   end
-  
-  -- Also refresh brightness and color if device supports it
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    -- Get brightness
-    local ok_brightness, brightness = pcall(twinkly.get_brightness, ip)
-    if ok_brightness and brightness then
-      local level = math.floor((brightness / 255) * 100)
-      device:emit_event(caps.switchLevel.level(level))
-    end
-    
-    -- Get color
-    local ok_color, color = pcall(twinkly.get_color, ip)
-    if ok_color and color and color.red and color.green and color.blue then
-      -- Convert RGB to HSV for SmartThings
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max = math.max(r, g, b)
-      local min = math.min(r, g, b)
-      local delta = max - min
-      
-      local h, s, v = 0, 0, max
-      
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
-      end
-      
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
-    end
-  end
+  return data.brightness
 end
 
--- brightness control handlers
-local function set_level(driver, device, command)
-  local ip = resolve_ip(device)
-  local level = command.args.level
-  log.info("SET_LEVEL -> " .. tostring(ip or "?") .. " level=" .. tostring(level))
-  
-  if ip and ip ~= "" then
-    local ok, result = pcall(twinkly.set_brightness, ip, level)
-    if ok then
-      log.info("set_brightness returned OK: " .. tostring(result))
-      device:emit_event(caps.switchLevel.level(level))
-    else
-      log.error("set_brightness threw error: " .. tostring(result))
-    end
-  end
-end
-
--- color control handlers  
-local function set_color(driver, device, command)
-  local ip = resolve_ip(device)
-  local hue = command.args.color.hue or 0
-  local saturation = command.args.color.saturation or 0
-  log.info("SET_COLOR -> " .. tostring(ip or "?") .. " hue=" .. tostring(hue) .. " sat=" .. tostring(saturation))
-  
-  if ip and ip ~= "" then
-    -- Get current brightness or use default
-    local current_brightness = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    
-    local ok, result = pcall(twinkly.set_color_hsv, ip, hue, saturation, current_brightness)
-    if ok then
-      log.info("set_color_hsv returned OK: " .. tostring(result))
-      device:emit_event(caps.colorControl.hue(hue))
-      device:emit_event(caps.colorControl.saturation(saturation))
-    else
-      log.error("set_color_hsv threw error: " .. tostring(result))
-    end
-  end
-end
-
-local function set_hue(driver, device, command)
-  local ip = resolve_ip(device)
-  local hue = command.args.hue
-  log.info("SET_HUE -> " .. tostring(ip or "?") .. " hue=" .. tostring(hue))
-  
-  if ip and ip ~= "" then
-    -- Get current saturation and brightness
-    local current_saturation = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.saturation.NAME) or 100
-    local current_brightness = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    
-    local ok, result = pcall(twinkly.set_color_hsv, ip, hue, current_saturation, current_brightness)
-    if ok then
-      log.info("set_color_hsv returned OK: " .. tostring(result))
-      device:emit_event(caps.colorControl.hue(hue))
-    else
-      log.error("set_color_hsv threw error: " .. tostring(result))
-    end
-  end
-end
-
-local function set_saturation(driver, device, command)
-  local ip = resolve_ip(device)
-  local saturation = command.args.saturation
-  log.info("SET_SATURATION -> " .. tostring(ip or "?") .. " sat=" .. tostring(saturation))
-  
-  if ip and ip ~= "" then
-    -- Get current hue and brightness  
-    local current_hue = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.hue.NAME) or 0
-    local current_brightness = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    
-    local ok, result = pcall(twinkly.set_color_hsv, ip, current_hue, saturation, current_brightness)
-    if ok then
-      log.info("set_color_hsv returned OK: " .. tostring(result))
-      device:emit_event(caps.colorControl.saturation(saturation))
-    else
-      log.error("set_color_hsv threw error: " .. tostring(result))
-    end
-  end
-end
-
--- poll state from Twinkly
-local function poll_state(driver, device)
-  local ip = resolve_ip(device)
-  if not ip or ip == "" then return end
-  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
-  if ok and mode_or_err then
-    if mode_or_err ~= "off" then
-      device:emit_event(caps.switch.switch.on())
-    else
-      device:emit_event(caps.switch.switch.off())
-    end
-  else
-    log.warn("Failed to poll " .. tostring(ip) .. ": " .. tostring(mode_or_err))
-  end
-  
-  -- Also poll brightness and color if device supports it
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode_or_err ~= "off" then
-    -- Poll brightness
-    local ok_brightness, brightness = pcall(twinkly.get_brightness, ip)
-    if ok_brightness and brightness then
-      local level = math.floor((brightness / 255) * 100)
-      device:emit_event(caps.switchLevel.level(level))
-    end
-    
-    -- Poll color
-    local ok_color, color = pcall(twinkly.get_color, ip)
-    if ok_color and color and color.red and color.green and color.blue then
-      -- Convert RGB to HSV for SmartThings
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max = math.max(r, g, b)
-      local min = math.min(r, g, b)
-      local delta = max - min
-      
-      local h, s, v = 0, 0, max
-      
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
-      end
-      
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
-    end
-  end
-end
-
--- lifecycle
-local function device_init(driver, device)
-  device:emit_event(caps.switch.switch.off())
-  
-  -- Initialize brightness and color for color light devices
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
-
-  -- cancel existing timer if present
-  local existing = device:get_field("poll_timer")
-  if existing then
-    driver:cancel_timer(existing)
-    device:set_field("poll_timer", nil)
-  end
-
-  -- schedule polling according to persisted field (seconds)
-  local interval = tonumber(device:get_field("pollInterval")) or 30
-  if interval >= 5 then
-    local timer = driver.call_on_schedule(driver, interval, function() poll_state(driver, device) end)
-    device:set_field("poll_timer", timer)
-  end
-end
-
-local function device_added(driver, device)
-  log.info("Device added: " .. (device.device_network_id or "unknown"))
-  device:emit_event(caps.switch.switch.off())
-  
-  -- Initialize brightness and color for color light devices
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
-  
-  -- ensure persisted fields exist
-  if not device:get_field("ipAddress") then
-    device:set_field("ipAddress", "", { persist = true })
-  end
-  if not device:get_field("pollInterval") then
-    device:set_field("pollInterval", 30, { persist = true })
-  end
-  log.info("Placeholder Twinkly device created. Please set the IP address in preferences.")
-end
-
-local function device_info_changed(driver, device)
-  -- persist preference values to fields so runtime uses fields only
-  local pref_ip = device.preferences and device.preferences.ipAddress
-  if pref_ip and pref_ip ~= "" then
-    device:set_field("ipAddress", pref_ip, { persist = true })
-  end
-  local pref_poll = device.preferences and device.preferences.pollInterval
-  if pref_poll and tonumber(pref_poll) then
-    device:set_field("pollInterval", tonumber(pref_poll), { persist = true })
-  end
-
-  device_init(driver, device)
-end
-
--- discovery: adds a placeholder device if there are none unconfigured
-local function discovery(driver, opts, cons)
-  log.info("Twinkly discovery triggered...")
-
-  -- Check if there is already an unconfigured placeholder
-  for _, dev in pairs(driver:get_devices()) do
-    local ip = dev:get_field("ipAddress")
-    if not ip or ip == "" then
-      log.info("Unconfigured placeholder exists (" .. dev.device_network_id .. "), skipping new one")
-      return
-    end
-  end
-
-  -- If all devices are configured, create a new placeholder
-  local placeholder_id = "twinkly-" .. tostring(os.time())
-
-  driver:try_create_device({
-    type = "LAN",
-    device_network_id = placeholder_id,
-    label = "Twinkly Color Light (" .. placeholder_id .. ")",
-    profile = "twinkly-color-light",
-    manufacturer = "Twinkly",
-    model = "LED",
+function control.set_color_rgb(ip, red, green, blue)
+  -- Twinkly LEDs use GRB channel order
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/color", "POST", { 
+    red = green,   -- swap red and green
+    green = red,
+    blue = blue
   })
-
-  log.info("Created new Twinkly placeholder: " .. placeholder_id)
+  if code ~= 200 then
+    return false, resp_body
+  end
+  return true, resp_body
 end
 
-local twinkly_driver = Driver("twinkly", {
-  discovery = discovery,
-  lifecycle_handlers = { init = device_init, added = device_added, infoChanged = device_info_changed },
-  capability_handlers = {
-    [caps.switch.ID] = {
-      [caps.switch.commands.on.NAME] = switch_on,
-      [caps.switch.commands.off.NAME] = switch_off,
-    },
-    [caps.switchLevel.ID] = {
-      [caps.switchLevel.commands.setLevel.NAME] = set_level,
-    },
-    [caps.colorControl.ID] = {
-      [caps.colorControl.commands.setColor.NAME] = set_color,
-      [caps.colorControl.commands.setHue.NAME] = set_hue,
-      [caps.colorControl.commands.setSaturation.NAME] = set_saturation,
-    },
-    [caps.refresh.ID] = {
-      [caps.refresh.commands.refresh.NAME] = handle_refresh,
-    }
-  }
-})
+function control.get_color(ip)
+  local res, code, status, resp_body = make_request(ip, "/xled/v1/led/color", "GET")
+  if code ~= 200 then
+    return nil, resp_body
+  end
+  local data, pos, err = json.decode(resp_body)
+  if err then
+    return nil, err
+  end
+  return data
+end
 
-twinkly_driver:run()
+function control.set_color_hsv(ip, hue, saturation, brightness)
+  -- Convert HSV to RGB
+  local h = hue * 360 / 100
+  local s = saturation / 100
+  local v = brightness / 100
+
+  local c = v * s
+  local x = c * (1 - math.abs((h / 60) % 2 - 1))
+  local m = v - c
+
+  local r1, g1, b1 = 0, 0, 0
+
+  if h < 60 then
+    r1, g1, b1 = c, x, 0
+  elseif h < 120 then
+    r1, g1, b1 = x, c, 0
+  elseif h < 180 then
+    r1, g1, b1 = 0, c, x
+  elseif h < 240 then
+    r1, g1, b1 = 0, x, c
+  elseif h < 300 then
+    r1, g1, b1 = x, 0, c
+  else
+    r1, g1, b1 = c, 0, x
+  end
+
+  local r = math.floor((r1 + m) * 255)
+  local g = math.floor((g1 + m) * 255)
+  local b = math.floor((b1 + m) * 255)
+
+  return control.set_color_rgb(ip, r, g, b)
+end
+
+return control
