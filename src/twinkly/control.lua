@@ -78,14 +78,38 @@ end
 
 local function make_request(ip, endpoint, method, payload)
   local token, err = login.ensure_token(ip)
-  if not token then return nil, err end
+  if not token then
+    log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
+    return nil, err
+  end
+
   local body = payload and json.encode(payload) or nil
   local res, code, status, resp_body = do_request(ip, endpoint, method, body, token)
+
+  -- Debug info
+  log.debug(string.format("[HTTP %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
+
+  -- Handle invalid token
   if code == 401 then
+    log.warn(string.format("[%s] 401 Unauthorized -> clearing token & retrying", endpoint))
     login.clear_token(ip)
-    local new_token = login.ensure_token(ip)
+
+    -- Re-login
+    local new_token, new_err = login.ensure_token(ip)
+    if not new_token then
+      log.error("Re-login failed for " .. tostring(ip) .. ": " .. tostring(new_err))
+      return nil, new_err
+    end
+
+    -- Retry the request with new token
     res, code, status, resp_body = do_request(ip, endpoint, method, body, new_token)
+    log.debug(string.format("[RETRY %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
   end
+
+  if not res or code ~= 200 then
+    return nil, string.format("Request failed: %s (code=%s, body=%s)", endpoint, tostring(code), tostring(resp_body))
+  end
+
   return res, code, status, resp_body
 end
 
