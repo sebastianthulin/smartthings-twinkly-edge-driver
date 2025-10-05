@@ -258,11 +258,27 @@ local function device_init(driver, device)
     device:set_field("poll_timer", nil)
   end
 
-  -- schedule polling according to persisted field (seconds)
+  -- Schedule polling
   local interval = tonumber(device:get_field("pollInterval")) or 30
-  if interval >= 5 then
-    local timer = driver.call_on_schedule(driver, interval, function() poll_state(driver, device) end)
-    device:set_field("poll_timer", timer)
+  if interval > 1 then
+    log.info(string.format("Starting poll timer for %s every %d seconds", device.label or device.id, interval))
+
+    -- cancel existing timer if any
+    local existing_timer = device:get_field("poll_timer")
+    if existing_timer then
+      driver:cancel_timer(existing_timer)
+      device:set_field("poll_timer", nil)
+    end
+
+    -- Use correct API call
+    local timer = driver:call_on_schedule(interval, function()
+      log.debug(string.format("[poll_timer] Running for %s", device.label or device.id))
+      poll_state(driver, device)
+    end)
+
+    device:set_field("poll_timer", timer, { persist = false })
+  else
+    log.warn("Polling interval below minimum threshold; skipping polling")
   end
 end
 
