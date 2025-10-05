@@ -1,11 +1,14 @@
 {
   "name": "twinkly-edge",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "scripts": {
     "check:lua": "command -v lua >/dev/null 2>&1 || (echo 'Lua not installed. Install Lua 5.3 first.' && exit 1)",
     "build": "smartthings edge:drivers:package .",
     "publish": "npm run build && smartthings edge:channels:assign $(npm run --silent driver:id) --channel 912e7705-ec88-413c-a3ac-1c5ecd9015ba",
+    "hub-install": "smartthings edge:drivers:install $(npm run --silent driver:id) --channel 912e7705-ec88-413c-a3ac-1c5ecd9015ba",
     "deploy": "npm run publish && npm run link",
+    "deploy:install": "npm run deploy && npm run hub-install",
+    "debug": "smartthings edge:drivers:logcat --log-level DEBUG",
     "link": "echo 'Link: https://callaway.smartthings.com/channels/912e7705-ec88-413c-a3ac-1c5ecd9015ba'",
     "test:on": "npm run check:lua && lua test.lua on $IP",
     "test:off": "npm run check:lua && lua test.lua off $IP",
