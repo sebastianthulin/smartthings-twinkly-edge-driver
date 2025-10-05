@@ -2,6 +2,7 @@ local Driver = require "st.driver"
 local caps = require "st.capabilities"
 local json = require "dkjson"
 local twinkly = require "twinkly"
+local login = require "twinkly.login"
 
 local ok, log = pcall(require, "log")
 if not ok then
