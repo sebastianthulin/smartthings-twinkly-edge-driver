@@ -3,6 +3,7 @@ local caps = require "st.capabilities"
 local json = require "dkjson"
 local twinkly = require "twinkly"
 local login = require "twinkly.login"
+local socket = require "socket"
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -67,6 +68,13 @@ local function handle_refresh(driver, device, command)
   local ip = resolve_ip(device)
   log.info("REFRESH -> " .. tostring(ip or "?"))
   if not ip then return end
+
+  -- Always ensure we have a valid token before manual refresh
+  local token, err = login.ensure_token(ip)
+  if not token then
+    log.warn(string.format("[refresh] Could not login for %s: %s", ip, tostring(err)))
+    return
+  end
 
   local ok, mode_or_err = pcall(twinkly.get_mode, ip)
   if ok and mode_or_err then
@@ -193,15 +201,21 @@ local function poll_state(driver, device)
   if not ip then return end
   log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
 
-  -- First try
-  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
+  -- Ensure valid token before poll
+  local token, err = login.ensure_token(ip)
+  if not token then
+    log.warn(string.format("[poll] Could not ensure token for %s: %s", ip, tostring(err)))
+    return
+  end
 
-  -- If invalid token was detected (401 already handled inside make_request),
-  -- but still returns nil, retry once after ensuring token again.
+  -- Try fetching mode
+  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
   if not ok or not mode_or_err then
     log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_or_err)))
-    local token, terr = login.ensure_token(ip)
-    if token then
+    socket.sleep(0.3)
+    login.clear_token(ip)
+    local retry_token, terr = login.ensure_token(ip)
+    if retry_token then
       ok, mode_or_err = pcall(twinkly.get_mode, ip)
     else
       log.error(string.format("[poll] Could not re-login for %s: %s", ip, tostring(terr)))
@@ -213,7 +227,7 @@ local function poll_state(driver, device)
     local mode = mode_or_err
     device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
 
-    -- Poll brightness and color if needed
+    -- Poll brightness and color if light is active
     if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
       local ok_b, brightness = pcall(twinkly.get_brightness, ip)
       if ok_b and brightness then
