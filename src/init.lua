@@ -400,6 +400,22 @@ local function discovery(driver, opts, cons)
 end
 
 -----------------------------------------------------------
+-- SCHEDULE POLLING
+-----------------------------------------------------------
+function schedule_poll(driver, device)
+  local interval = tonumber(device:get_field("pollInterval")) or 30
+  if interval < 1 then interval = 30 end
+
+  local timer = driver:call_with_delay(interval, function()
+    poll_state(driver, device)
+    schedule_poll(driver, device) -- reschedule continuously
+  end)
+
+  device:set_field("poll_timer", timer, { persist = false })
+  log.debug(string.format("[schedule_poll] Scheduled polling every %d seconds for %s", interval, device.label or device.id))
+end
+
+-----------------------------------------------------------
 -- DRIVER DEFINITION
 -----------------------------------------------------------
 local twinkly_driver = Driver("twinkly", {
