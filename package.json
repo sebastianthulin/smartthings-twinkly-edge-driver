@@ -1,6 +1,6 @@
 {
   "name": "twinkly-edge",
-  "version": "0.3.3",
+  "version": "0.3.2",
   "scripts": {
     "check:lua": "command -v lua >/dev/null 2>&1 || (echo 'Lua not installed. Install Lua 5.3 first.' && exit 1)",
     "build": "smartthings edge:drivers:package .",
