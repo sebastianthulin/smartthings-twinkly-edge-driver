@@ -192,49 +192,57 @@ local function poll_state(driver, device)
   if not ip then return end
   log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
 
-  -- Ensure we have a valid token before polling
-  local login = require("twinkly.login")
-  local token_ok, err = login.ensure_token(ip)
-  if not token_ok then
-    log.warn("Token refresh failed for " .. tostring(ip) .. ": " .. tostring(err))
-    return
+  -- First try
+  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
+
+  -- If invalid token was detected (401 already handled inside make_request),
+  -- but still returns nil, retry once after ensuring token again.
+  if not ok or not mode_or_err then
+    log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_or_err)))
+    local token, terr = login.ensure_token(ip)
+    if token then
+      ok, mode_or_err = pcall(twinkly.get_mode, ip)
+    else
+      log.error(string.format("[poll] Could not re-login for %s: %s", ip, tostring(terr)))
+      return
+    end
   end
 
-  -- Proceed with normal polling
-  local ok, mode = pcall(twinkly.get_mode, ip)
-  if ok and mode then
+  if ok and mode_or_err then
+    local mode = mode_or_err
     device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
-  else
-    log.warn("[poll] Failed to get mode: " .. tostring(mode))
-  end
 
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
-    local ok_b, brightness = pcall(twinkly.get_brightness, ip)
-    if ok_b and brightness then
-      local level = math.floor((brightness / 255) * 100)
-      device:emit_event(caps.switchLevel.level(level))
-    end
-
-    local ok_c, color = pcall(twinkly.get_color, ip)
-    if ok_c and color and color.red then
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max, min = math.max(r, g, b), math.min(r, g, b)
-      local delta = max - min
-      local h, s, v = 0, 0, max
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
+    -- Poll brightness and color if needed
+    if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
+      local ok_b, brightness = pcall(twinkly.get_brightness, ip)
+      if ok_b and brightness then
+        local level = math.floor((brightness / 255) * 100)
+        device:emit_event(caps.switchLevel.level(level))
       end
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
+
+      local ok_c, color = pcall(twinkly.get_color, ip)
+      if ok_c and color and color.red then
+        local r, g, b = color.red / 255, color.green / 255, color.blue / 255
+        local max, min = math.max(r, g, b), math.min(r, g, b)
+        local delta = max - min
+        local h, s, v = 0, 0, max
+        if delta > 0 then
+          s = delta / max
+          if max == r then
+            h = ((g - b) / delta) % 6
+          elseif max == g then
+            h = (b - r) / delta + 2
+          else
+            h = (r - g) / delta + 4
+          end
+          h = h * 60
+        end
+        device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
+        device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
+      end
     end
+  else
+    log.warn(string.format("[poll] Giving up for %s after retry", ip))
   end
 end
 
