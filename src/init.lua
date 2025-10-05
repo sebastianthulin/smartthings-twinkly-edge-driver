@@ -212,7 +212,7 @@ local function poll_state(driver, device)
   local ok, mode_or_err = pcall(twinkly.get_mode, ip)
   if not ok or not mode_or_err then
     log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_or_err)))
-    socket.sleep(0.3)
+    if socket and socket.sleep then socket.sleep(0.3) end
     login.clear_token(ip)
     local retry_token, terr = login.ensure_token(ip)
     if retry_token then
@@ -225,22 +225,34 @@ local function poll_state(driver, device)
 
   if ok and mode_or_err then
     local mode = mode_or_err
+    log.debug(string.format("[poll] Current mode for %s: %s", ip, tostring(mode)))
     device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
 
-    -- Poll brightness and color if light is active
+    -- Poll brightness and color if active
     if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
+      --------------------------------------------------------
+      -- Brightness
+      --------------------------------------------------------
       local ok_b, brightness = pcall(twinkly.get_brightness, ip)
       if ok_b and brightness then
-        local level = math.floor((brightness / 255) * 100)
+        local raw = tonumber(brightness) or 0
+        local level = math.min(math.max(math.floor((raw / 255) * 100), 0), 100)
+        log.debug(string.format("[poll] Brightness raw=%s → level=%d", tostring(raw), level))
         device:emit_event(caps.switchLevel.level(level))
+      else
+        log.warn(string.format("[poll] Brightness polling failed for %s: %s", ip, tostring(brightness)))
       end
 
+      --------------------------------------------------------
+      -- Color
+      --------------------------------------------------------
       local ok_c, color = pcall(twinkly.get_color, ip)
       if ok_c and color and color.red then
         local r, g, b = color.red / 255, color.green / 255, color.blue / 255
         local max, min = math.max(r, g, b), math.min(r, g, b)
         local delta = max - min
         local h, s, v = 0, 0, max
+
         if delta > 0 then
           s = delta / max
           if max == r then
@@ -252,8 +264,14 @@ local function poll_state(driver, device)
           end
           h = h * 60
         end
-        device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-        device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
+
+        local hue = math.floor((h / 360) * 100)
+        local sat = math.floor(s * 100)
+        log.debug(string.format("[poll] Color raw R=%d G=%d B=%d → H=%d S=%d", color.red, color.green, color.blue, hue, sat))
+        device:emit_event(caps.colorControl.hue(hue))
+        device:emit_event(caps.colorControl.saturation(sat))
+      else
+        log.warn(string.format("[poll] Color polling failed or invalid for %s", ip))
       end
     end
   else
