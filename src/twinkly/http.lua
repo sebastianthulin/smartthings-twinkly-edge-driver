@@ -1,25 +1,25 @@
 local M = {}
 
--- You can define this in your test script:
--- _G.IS_LOCAL_TEST = true
-
+-- Detect if we're running on SmartThings Edge Hub
+-- The hub injects `cosock` globally — that’s the safest detection.
 local function is_running_on_hub()
+  -- Local override (for tests)
   if _G.IS_LOCAL_TEST then
     return false
   end
 
-  -- On hub, cosock is preloaded globally
-  local ok, cosock = pcall(require, "cosock")
-  return ok and type(cosock.asyncify) == "function"
+  -- If cosock is preloaded globally, we're on the hub
+  local ok, _ = pcall(require, "cosock")
+  return ok
 end
 
 if is_running_on_hub() then
+  -- On hub: use cosock async HTTP
   local cosock = require "cosock"
   M.http = cosock.asyncify("socket.http")
-  print("[twinkly.http] Using cosock.asyncify(socket.http)")
 else
+  -- Local dev: blocking LuaSocket
   M.http = require "socket.http"
-  print("[twinkly.http] Using blocking socket.http (local mode)")
 end
 
 return M
