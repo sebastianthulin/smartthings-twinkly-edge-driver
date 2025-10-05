@@ -192,9 +192,20 @@ local function poll_state(driver, device)
   if not ip then return end
   log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
 
+  -- Ensure we have a valid token before polling
+  local login = require("twinkly.login")
+  local token_ok, err = login.ensure_token(ip)
+  if not token_ok then
+    log.warn("Token refresh failed for " .. tostring(ip) .. ": " .. tostring(err))
+    return
+  end
+
+  -- Proceed with normal polling
   local ok, mode = pcall(twinkly.get_mode, ip)
   if ok and mode then
     device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
+  else
+    log.warn("[poll] Failed to get mode: " .. tostring(mode))
   end
 
   if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
@@ -229,7 +240,7 @@ end
 
 local function schedule_poll(driver, device)
   local interval = tonumber(device:get_field("pollInterval")) or 30
-  if interval < 5 then interval = 30 end
+  if interval < 1 then interval = 30 end
 
   driver:call_with_delay(interval, function()
     poll_state(driver, device)
