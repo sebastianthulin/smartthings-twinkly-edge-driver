@@ -82,7 +82,8 @@ local function do_request(ip, endpoint, method, body, token)
 end
 
 -- 🧠 Centralized retry logic
-local function make_request(ip, endpoint, method, payload, _retry)
+local function make_request(ip, endpoint, method, payload)
+  -- Always try to ensure token before any request
   local token, err = login.ensure_token(ip)
   if not token then
     log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
@@ -91,12 +92,21 @@ local function make_request(ip, endpoint, method, payload, _retry)
 
   local body = payload and json.encode(payload) or nil
   local res, code, status, resp_body = do_request(ip, endpoint, method, body, token)
+
+  -- Debug info
   log.debug(string.format("[HTTP %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
 
-  if code == 401 and not _retry then
-    log.warn(string.format("[%s] 401 Unauthorized -> clearing token & retrying", endpoint))
+  -- Handle invalid or expired token globally
+  if code == 401 or (resp_body and resp_body:match("Invalid Token")) then
+    log.warn(string.format("[%s] 401 or Invalid Token -> clearing token & retrying", endpoint))
+
+    -- Always clear token
     login.clear_token(ip)
 
+    -- Wait briefly before retry (Twinkly needs a small pause before reauth)
+    if socket and socket.sleep then socket.sleep(0.5) end
+
+    -- Try again with a *fresh* token
     local new_token, new_err = login.ensure_token(ip)
     if not new_token then
       log.error("Re-login failed for " .. tostring(ip) .. ": " .. tostring(new_err))
@@ -105,11 +115,16 @@ local function make_request(ip, endpoint, method, payload, _retry)
 
     res, code, status, resp_body = do_request(ip, endpoint, method, body, new_token)
     log.debug(string.format("[RETRY %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
+
+    -- Final safeguard
+    if code == 401 or (resp_body and resp_body:match("Invalid Token")) then
+      log.warn(string.format("[%s] Giving up for %s after retry", endpoint, ip))
+      return nil, "Invalid Token after retry"
+    end
   end
 
   if not res or code ~= 200 then
-    log.warn(string.format("[make_request] Failed: %s (code=%s, body=%s)", endpoint, tostring(code), tostring(resp_body)))
-    return nil, string.format("Request failed: %s (code=%s)", endpoint, tostring(code))
+    return nil, string.format("Request failed: %s (code=%s, body=%s)", endpoint, tostring(code), tostring(resp_body))
   end
 
   return res, code, status, resp_body
