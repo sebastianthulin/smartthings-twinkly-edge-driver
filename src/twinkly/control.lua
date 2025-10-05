@@ -15,9 +15,11 @@ end
 local control = {}
 
 -- 🧩 Adjustable saturation curve factor (higher = more saturation retained)
--- Try values between 1.0 and 3.0. Default 1.6 gives rich colors.
 local SATURATION_SCALE = 1.6
 
+------------------------------------------------------------
+-- Mode helper
+------------------------------------------------------------
 local function do_set_mode(ip, mode, token)
   local body = json.encode({ mode = mode })
   local resp = {}
@@ -58,7 +60,9 @@ function control.set_mode(ip, mode)
   return true, resp_body
 end
 
--- HTTP helper with token retry
+------------------------------------------------------------
+-- Unified HTTP request with auto token management
+------------------------------------------------------------
 local function do_request(ip, endpoint, method, body, token)
   local resp = {}
   local headers = { ["X-Auth-Token"] = token }
@@ -66,6 +70,7 @@ local function do_request(ip, endpoint, method, body, token)
     headers["Content-Type"] = "application/json"
     headers["Content-Length"] = tostring(#body)
   end
+
   local res, code, _, status = http.request{
     url = "http://" .. ip .. endpoint,
     method = method or "GET",
@@ -76,7 +81,8 @@ local function do_request(ip, endpoint, method, body, token)
   return res, code, status, table.concat(resp)
 end
 
-local function make_request(ip, endpoint, method, payload)
+-- 🧠 Centralized retry logic
+local function make_request(ip, endpoint, method, payload, _retry)
   local token, err = login.ensure_token(ip)
   if not token then
     log.error("No token for " .. tostring(ip) .. ": " .. tostring(err))
@@ -85,35 +91,33 @@ local function make_request(ip, endpoint, method, payload)
 
   local body = payload and json.encode(payload) or nil
   local res, code, status, resp_body = do_request(ip, endpoint, method, body, token)
-
-  -- Debug info
   log.debug(string.format("[HTTP %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
 
-  -- Handle invalid token
-  if code == 401 then
+  if code == 401 and not _retry then
     log.warn(string.format("[%s] 401 Unauthorized -> clearing token & retrying", endpoint))
     login.clear_token(ip)
 
-    -- Re-login
     local new_token, new_err = login.ensure_token(ip)
     if not new_token then
       log.error("Re-login failed for " .. tostring(ip) .. ": " .. tostring(new_err))
       return nil, new_err
     end
 
-    -- Retry the request with new token
     res, code, status, resp_body = do_request(ip, endpoint, method, body, new_token)
     log.debug(string.format("[RETRY %s %s] code=%s body=%s", method or "GET", endpoint, tostring(code), tostring(resp_body)))
   end
 
   if not res or code ~= 200 then
-    return nil, string.format("Request failed: %s (code=%s, body=%s)", endpoint, tostring(code), tostring(resp_body))
+    log.warn(string.format("[make_request] Failed: %s (code=%s, body=%s)", endpoint, tostring(code), tostring(resp_body)))
+    return nil, string.format("Request failed: %s (code=%s)", endpoint, tostring(code))
   end
 
   return res, code, status, resp_body
 end
 
+------------------------------------------------------------
 -- Brightness
+------------------------------------------------------------
 function control.set_brightness(ip, level)
   local res, code, status, resp_body = make_request(ip, "/xled/v1/led/out/brightness", "POST", { value = level })
   if not res or code ~= 200 then return nil, status end
@@ -127,7 +131,9 @@ function control.get_brightness(ip)
   return decoded and decoded.value or 0
 end
 
+------------------------------------------------------------
 -- Color (standard RGB order)
+------------------------------------------------------------
 function control.set_color_rgb(ip, red, green, blue)
   log.debug(string.format("Setting color RGB(%d,%d,%d) to %s", red, green, blue, ip))
   local ok, err = control.set_mode(ip, "color")
@@ -139,9 +145,10 @@ function control.set_color_rgb(ip, red, green, blue)
   return true, resp_body
 end
 
--- HSV → RGB with gamma + saturation scaling
+------------------------------------------------------------
+-- HSV → RGB conversion with gamma & saturation scaling
+------------------------------------------------------------
 local function hsv_to_rgb(h, s, v)
-  -- Adjust perceived saturation curve (retain colorfulness longer)
   s = math.pow(s, 1 / SATURATION_SCALE)
 
   local c = v * s
@@ -156,7 +163,6 @@ local function hsv_to_rgb(h, s, v)
   elseif h < 300 then r,g,b = x,0,c
   else r,g,b = c,0,x end
 
-  -- gamma correction
   local gamma = 2.2
   r = math.pow(r + m, 1 / gamma)
   g = math.pow(g + m, 1 / gamma)
@@ -173,6 +179,9 @@ function control.set_color_hsv(ip, hue, saturation, value)
   return control.set_color_rgb(ip, r, g, b)
 end
 
+------------------------------------------------------------
+-- Get color
+------------------------------------------------------------
 function control.get_color(ip)
   local res, code, status, resp_body = make_request(ip, "/xled/v1/led/color", "GET")
   if not res or code ~= 200 then return nil end
