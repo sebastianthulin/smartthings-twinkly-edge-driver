@@ -208,51 +208,64 @@ local function poll_state(driver, device)
     return
   end
 
-  -- Try fetching mode
-  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
-  if not ok or not mode_or_err then
-    log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_or_err)))
+  -- Try fetching mode (includes color_config sometimes)
+  local ok, mode_data = pcall(twinkly.get_mode, ip)
+  if not ok or not mode_data then
+    log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_data)))
     if socket and socket.sleep then socket.sleep(0.3) end
     login.clear_token(ip)
-    local retry_token, terr = login.ensure_token(ip)
+    local retry_token = login.ensure_token(ip)
     if retry_token then
-      ok, mode_or_err = pcall(twinkly.get_mode, ip)
+      ok, mode_data = pcall(twinkly.get_mode, ip)
     else
-      log.error(string.format("[poll] Could not re-login for %s: %s", ip, tostring(terr)))
       return
     end
   end
 
-  if ok and mode_or_err then
-    local mode = mode_or_err
-    log.debug(string.format("[poll] Current mode for %s: %s", ip, tostring(mode)))
-    device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
+  if not ok or not mode_data then
+    log.warn(string.format("[poll] Giving up for %s after retry", ip))
+    return
+  end
 
-    -- Poll brightness and color if active
-    if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
-      --------------------------------------------------------
-      -- Brightness
-      --------------------------------------------------------
+  local mode = mode_data.mode or mode_data
+  log.debug(string.format("[poll] Current mode for %s: %s", ip, tostring(mode)))
+  device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
+
+  -- Poll brightness & color if light is active
+  if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
+    local color_cfg = mode_data.color_config
+    local new_hue, new_sat, new_brightness
+
+    if color_cfg then
+      -- 🎨 Use color_config directly
+      local r = color_cfg.red or 0
+      local g = color_cfg.green or 0
+      local b = color_cfg.blue or 0
+      local v = color_cfg.value or 255
+      local s = color_cfg.saturation or 255
+      local h = color_cfg.hue or 0
+
+      new_brightness = math.floor((v / 255) * 100)
+      new_hue = math.floor((h / 360) * 100)
+      new_sat = math.floor((s / 255) * 100)
+
+      log.debug(string.format(
+        "[poll] Using color_config -> R=%d G=%d B=%d | H=%d S=%d V=%d",
+        r, g, b, new_hue, new_sat, new_brightness
+      ))
+    else
+      -- 🕹️ Fallback: old endpoints
       local ok_b, brightness = pcall(twinkly.get_brightness, ip)
       if ok_b and brightness then
-        local raw = tonumber(brightness) or 0
-        local level = math.min(math.max(math.floor((raw / 255) * 100), 0), 100)
-        log.debug(string.format("[poll] Brightness raw=%s → level=%d", tostring(raw), level))
-        device:emit_event(caps.switchLevel.level(level))
-      else
-        log.warn(string.format("[poll] Brightness polling failed for %s: %s", ip, tostring(brightness)))
+        new_brightness = math.floor((brightness / 255) * 100)
       end
 
-      --------------------------------------------------------
-      -- Color
-      --------------------------------------------------------
       local ok_c, color = pcall(twinkly.get_color, ip)
       if ok_c and color and color.red then
         local r, g, b = color.red / 255, color.green / 255, color.blue / 255
         local max, min = math.max(r, g, b), math.min(r, g, b)
         local delta = max - min
         local h, s, v = 0, 0, max
-
         if delta > 0 then
           s = delta / max
           if max == r then
@@ -264,29 +277,43 @@ local function poll_state(driver, device)
           end
           h = h * 60
         end
-
-        local hue = math.floor((h / 360) * 100)
-        local sat = math.floor(s * 100)
-        log.debug(string.format("[poll] Color raw R=%d G=%d B=%d → H=%d S=%d", color.red, color.green, color.blue, hue, sat))
-        device:emit_event(caps.colorControl.hue(hue))
-        device:emit_event(caps.colorControl.saturation(sat))
-      else
-        log.warn(string.format("[poll] Color polling failed or invalid for %s", ip))
+        new_hue = math.floor((h / 360) * 100)
+        new_sat = math.floor(s * 100)
       end
     end
-  else
-    log.warn(string.format("[poll] Giving up for %s after retry", ip))
+
+    -- 🧠 Smart event deduplication
+    local prev_state = device:get_field("last_state") or {}
+    local changed = false
+
+    if new_brightness and new_brightness ~= prev_state.brightness then
+      device:emit_event(caps.switchLevel.level(new_brightness))
+      prev_state.brightness = new_brightness
+      changed = true
+    end
+
+    if new_hue and new_hue ~= prev_state.hue then
+      device:emit_event(caps.colorControl.hue(new_hue))
+      prev_state.hue = new_hue
+      changed = true
+    end
+
+    if new_sat and new_sat ~= prev_state.sat then
+      device:emit_event(caps.colorControl.saturation(new_sat))
+      prev_state.sat = new_sat
+      changed = true
+    end
+
+    if changed then
+      log.debug(string.format(
+        "[poll] Updated color state → hue=%s sat=%s bright=%s",
+        tostring(new_hue), tostring(new_sat), tostring(new_brightness)
+      ))
+      device:set_field("last_state", prev_state, { persist = false })
+    else
+      log.debug("[poll] No change detected — skipping redundant events")
+    end
   end
-end
-
-local function schedule_poll(driver, device)
-  local interval = tonumber(device:get_field("pollInterval")) or 30
-  if interval < 1 then interval = 30 end
-
-  driver:call_with_delay(interval, function()
-    poll_state(driver, device)
-    schedule_poll(driver, device) -- reschedule
-  end)
 end
 
 -----------------------------------------------------------
