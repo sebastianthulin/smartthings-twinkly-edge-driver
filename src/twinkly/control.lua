@@ -165,10 +165,11 @@ function control.set_color_rgb(ip, red, green, blue)
     return nil, "Failed to set mode to color: " .. tostring(err)
   end
   
+  -- Twinkly LEDs use GRB channel order
   local res, code, status, resp_body = make_request(ip, "/xled/v1/led/color", "POST", { 
-    red = red, 
-    green = green, 
-    blue = blue 
+    red = green,   -- swap red and green (neopixel order)
+    green = red,
+    blue = blue
   })
   
   if not res or code ~= 200 then
