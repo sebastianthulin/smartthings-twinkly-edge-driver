@@ -2,6 +2,7 @@ local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local utils = require "twinkly.utils"
+
 local ok, log = pcall(require, "log")
 if not ok then
   log = {
@@ -15,19 +16,27 @@ end
 local login = {}
 local sessions = {}
 
--- Clear a cached token for an IP
+-----------------------------------------------------------
+-- 🧹 Clear a cached token
+-----------------------------------------------------------
 function login.clear_token(ip)
-  sessions[ip] = nil
+  if sessions[ip] then
+    log.debug("[login] Clearing token for " .. tostring(ip))
+    sessions[ip] = nil
+  end
 end
 
--- Perform login handshake
+-----------------------------------------------------------
+-- 🔐 Perform full login + verify handshake
+-----------------------------------------------------------
 function login.login(ip)
   if not ip then return nil, "No IP provided" end
 
-  -- Step 1: login with challenge
   local challenge = utils.random_base64(16)
   local login_body = json.encode({ challenge = challenge })
   local resp = {}
+
+  -- Step 1: POST /login
   local res, code, _, status = http.request{
     url = "http://" .. ip .. "/xled/v1/login",
     method = "POST",
@@ -38,8 +47,9 @@ function login.login(ip)
     source = ltn12.source.string(login_body),
     sink = ltn12.sink.table(resp),
   }
+
   if not res or code ~= 200 then
-    log.warn("Login failed to " .. tostring(ip) .. ": " .. tostring(status))
+    log.warn("[login] Failed to login to " .. tostring(ip) .. ": " .. tostring(status))
     return nil, "Login failed: " .. tostring(status)
   end
 
@@ -51,9 +61,10 @@ function login.login(ip)
   end
 
   local token = decoded.authentication_token
+  local challenge_response = decoded["challenge-response"]
 
-  -- Step 2: verify challenge-response
-  local verify_body = json.encode({ ["challenge-response"] = decoded["challenge-response"] })
+  -- Step 2: POST /verify
+  local verify_body = json.encode({ ["challenge-response"] = challenge_response })
   local vresp = {}
   local vres, vcode, _, vstatus = http.request{
     url = "http://" .. ip .. "/xled/v1/verify",
@@ -66,24 +77,68 @@ function login.login(ip)
     source = ltn12.source.string(verify_body),
     sink = ltn12.sink.table(vresp),
   }
+
   local vbody = table.concat(vresp)
   log.debug("[verify] Raw body: " .. tostring(vbody))
   if not vres or vcode ~= 200 then
-    return nil, "Verify failed: " .. tostring(vstatus) .. " Body: " .. vbody
+    log.warn("[verify] Verify failed for " .. ip .. ": " .. tostring(vstatus))
+    return nil, "Verify failed: " .. tostring(vstatus)
   end
 
-  -- Cache token for reuse
+  -- Step 3: Cache token
   sessions[ip] = token
+  log.info("[login] Logged in successfully for " .. ip)
   return token
 end
 
--- Get a valid token, retry login if needed
+-----------------------------------------------------------
+-- 🧠 Ensure valid token (auto re-login if invalid)
+-----------------------------------------------------------
 function login.ensure_token(ip)
   local token = sessions[ip]
+
+  -- ✅ Validate existing token with a quick /verify call
   if token then
-    return token
+    local resp = {}
+    local res, code = http.request{
+      url = "http://" .. ip .. "/xled/v1/verify",
+      method = "POST",
+      headers = {
+        ["X-Auth-Token"] = token,
+        ["Content-Type"] = "application/json",
+        ["Content-Length"] = "2"
+      },
+      source = ltn12.source.string("{}"),
+      sink = ltn12.sink.table(resp),
+    }
+
+    if res and code == 200 then
+      log.debug("[ensure_token] Existing token still valid for " .. ip)
+      return token
+    else
+      log.warn("[ensure_token] Token invalid for " .. ip .. ", clearing...")
+      sessions[ip] = nil
+    end
   end
-  return login.login(ip)
+
+  -- 🚀 No valid token — perform full login
+  log.debug("[ensure_token] Performing login for " .. tostring(ip))
+  local new_token, err = login.login(ip)
+  if not new_token then
+    log.error("[ensure_token] Failed to get new token for " .. tostring(ip) .. ": " .. tostring(err))
+    return nil, err
+  end
+
+  return new_token
+end
+
+-----------------------------------------------------------
+-- 🔍 Debug helper
+-----------------------------------------------------------
+function login.dump_sessions()
+  for ip, token in pairs(sessions) do
+    log.debug(string.format("[session] %s => %s", ip, token))
+  end
 end
 
 return login
