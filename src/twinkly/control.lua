@@ -15,7 +15,7 @@ end
 local control = {}
 
 -- 🧩 Adjustable saturation curve factor (higher = more saturation retained)
-local SATURATION_SCALE = 1.6
+local SATURATION_SCALE = 1.8
 
 ------------------------------------------------------------
 -- Mode helper
