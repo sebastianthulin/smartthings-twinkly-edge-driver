@@ -14,7 +14,10 @@ end
 
 -- helper to resolve IP address: only use stored device field (persisted)
 local function resolve_ip(device)
-  local ip = device.preferences.ipAddress
+  local ip = device:get_field("ipAddress")
+  if not ip or ip == "" then
+    ip = device.preferences.ipAddress
+  end
   if not ip or ip == "" then
     log.warn("No IP address configured for device " .. (device.label or device.id))
     return nil
@@ -190,6 +193,7 @@ end
 -- poll state from Twinkly
 local function poll_state(driver, device)
   local ip = resolve_ip(device)
+  log.info(string.format("Polling device %s with IP %s", device.label or device.id, tostring(ip or "?")))
   if not ip or ip == "" then return end
   local ok, mode_or_err = pcall(twinkly.get_mode, ip)
   if ok and mode_or_err then
@@ -280,6 +284,8 @@ local function device_init(driver, device)
   else
     log.warn("Polling interval below minimum threshold; skipping polling")
   end
+
+  poll_state(driver, device)
 end
 
 local function device_added(driver, device)
