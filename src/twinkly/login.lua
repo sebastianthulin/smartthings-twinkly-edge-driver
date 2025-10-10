@@ -2,6 +2,7 @@ local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local utils = require "twinkly.utils"
+local config = require "twinkly.config"
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -38,17 +39,17 @@ function login.login(ip)
 
   -- Step 1: POST /login
   local res, code, _, status = http.request{
-    url = "http://" .. ip .. "/xled/v1/login",
+    url = config.build_url(ip, "login"),
     method = "POST",
     headers = {
-      ["Content-Type"] = "application/json",
-      ["Content-Length"] = tostring(#login_body)
+      ["Content-Type"] = config.api.content_type,
+      [config.http.content_length_header] = tostring(#login_body)
     },
     source = ltn12.source.string(login_body),
     sink = ltn12.sink.table(resp),
   }
 
-  if not res or code ~= 200 then
+  if not res or code ~= config.http.success_code then
     log.warn("[login] Failed to login to " .. tostring(ip) .. ": " .. tostring(status))
     return nil, "Login failed: " .. tostring(status)
   end
@@ -67,12 +68,12 @@ function login.login(ip)
   local verify_body = json.encode({ ["challenge-response"] = challenge_response })
   local vresp = {}
   local vres, vcode, _, vstatus = http.request{
-    url = "http://" .. ip .. "/xled/v1/verify",
+    url = config.build_url(ip, "verify"),
     method = "POST",
     headers = {
-      ["Content-Type"] = "application/json",
-      ["Content-Length"] = tostring(#verify_body),
-      ["X-Auth-Token"] = token
+      ["Content-Type"] = config.api.content_type,
+      [config.http.content_length_header] = tostring(#verify_body),
+      [config.http.auth_header] = token
     },
     source = ltn12.source.string(verify_body),
     sink = ltn12.sink.table(vresp),
@@ -80,7 +81,7 @@ function login.login(ip)
 
   local vbody = table.concat(vresp)
   log.debug("[verify] Raw body: " .. tostring(vbody))
-  if not vres or vcode ~= 200 then
+  if not vres or vcode ~= config.http.success_code then
     log.warn("[verify] Verify failed for " .. ip .. ": " .. tostring(vstatus))
     return nil, "Verify failed: " .. tostring(vstatus)
   end
@@ -101,18 +102,18 @@ function login.ensure_token(ip)
   if token then
     local resp = {}
     local res, code = http.request{
-      url = "http://" .. ip .. "/xled/v1/verify",
+      url = config.build_url(ip, "verify"),
       method = "POST",
       headers = {
-        ["X-Auth-Token"] = token,
-        ["Content-Type"] = "application/json",
-        ["Content-Length"] = "2"
+        [config.http.auth_header] = token,
+        ["Content-Type"] = config.api.content_type,
+        [config.http.content_length_header] = "2"
       },
       source = ltn12.source.string("{}"),
       sink = ltn12.sink.table(resp),
     }
 
-    if res and code == 200 then
+    if res and code == config.http.success_code then
       log.debug("[ensure_token] Existing token still valid for " .. ip)
       return token
     else
