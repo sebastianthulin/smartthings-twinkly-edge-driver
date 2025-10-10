@@ -1,7 +1,17 @@
 -- Usage Examples for the New SOLID Architecture
 -- This file demonstrates the power and flexibility of the new design
+--
+-- NOTE: Run this file from the project root directory:
+-- lua5.4 src/examples/usage_examples.lua
 
-package.path = package.path .. ';src/?.lua'
+-- Set up module path for this example (run from project root)
+local current_dir = debug.getinfo(1).source:match("@?(.*/)")
+if current_dir then
+  package.path = package.path .. ';' .. current_dir .. '../?.lua'
+else
+  -- Fallback: assume running from project root
+  package.path = package.path .. ';src/?.lua'
+end
 
 local ServiceFactory = require "service_factory"
 local class = require "vendor.30log"
@@ -85,7 +95,20 @@ function DeviceMonitor:get_status(ip)
     return nil, "Not monitoring this IP"
   end
   
-  local health = self._controller:health_check(ip)
+  -- Safely call health_check with error handling
+  local health = nil
+  local health_error = nil
+  local success, result = pcall(function() 
+    return self._controller:health_check(ip) 
+  end)
+  
+  if success then
+    health = result
+  else
+    health_error = result
+    self._logger:warn("Health check failed for " .. ip .. ": " .. tostring(result))
+  end
+  
   monitor_info.last_check = os.time()
   
   return {
@@ -93,7 +116,8 @@ function DeviceMonitor:get_status(ip)
     monitoring_since = monitor_info.started,
     last_check = monitor_info.last_check,
     interval = monitor_info.interval,
-    device_health = health
+    device_health = health,
+    health_error = health_error
   }
 end
 
@@ -153,8 +177,10 @@ print()
 -- Example 5: Service extension through inheritance
 print("5. Service Extension through Inheritance:")
 
--- Create an enhanced device service
-local EnhancedDeviceService = container:resolve("device_service").class:extend("EnhancedDeviceService")
+-- Create an enhanced device service using proper factory pattern
+local base_device_service = container:resolve("device_service")
+local DeviceServiceClass = require("services.device_service")
+local EnhancedDeviceService = DeviceServiceClass:extend("EnhancedDeviceService")
 
 function EnhancedDeviceService:set_color_with_transition(ip, red, green, blue, duration)
   self._logger:info(string.format("Setting color RGB(%d,%d,%d) with %ds transition for %s", 
