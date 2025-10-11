@@ -4,6 +4,16 @@
 package.path = package.path .. ";src/?.lua"
 _G.IS_LOCAL_TEST = true -- ensures blocking socket is used locally
 
+-- Mock log for local testing
+package.preload["log"] = function()
+  return {
+    debug = function(...) end,
+    info = function(...) print("[INFO]", ...) end,
+    warn = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
+
 local login = require "twinkly.login"
 local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
