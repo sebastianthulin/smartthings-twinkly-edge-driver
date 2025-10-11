@@ -12,9 +12,18 @@ package-lock.json
 *.pkg
 
 # Local testing
-tests/
+# tests/ - removed, we want to include the tests directory
 *.log
 *.tmp
+
+# Test configuration (contains sensitive IP addresses)
+test-config.lua
+.env
+
+# Test artifacts
+test-output/
+test-logs/
+coverage/
 
 # macOS
 .DS_Store

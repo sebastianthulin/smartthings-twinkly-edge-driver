@@ -2,9 +2,15 @@ local M = {}
 
 -- Force plain LuaSocket when running locally
 -- On the hub, SmartThings injects cosock and you can switch back.
--- This needs to be changed manually for local testing.
+-- Detect if we're running in local test environment
 local function is_running_on_hub()
-  return true;
+  -- Check for local test environment variable
+  if _G.IS_LOCAL_TEST then
+    return false
+  end
+  -- Check if we have SmartThings environment
+  local ok, _ = pcall(require, "st.driver")
+  return ok
 end
 
 if is_running_on_hub() then
