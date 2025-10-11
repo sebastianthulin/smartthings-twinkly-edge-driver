@@ -3,6 +3,16 @@
 package.path = package.path .. ";../src/?.lua;./?.lua"
 _G.IS_LOCAL_TEST = true
 
+-- Mock the log module for integration tests
+package.preload["log"] = function()
+  return {
+    debug = function(...) end,
+    info = function(...) print("[INFO]", ...) end,
+    warn = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
+
 local test_utils = require("test-utils")
 local twinkly = require("twinkly")
 local socket = require("socket")
@@ -15,13 +25,14 @@ local ip
 
 -- Skip integration tests if no IP is configured
 local function skip_if_no_ip()
-  local success, result = pcall(test_utils.get_test_ip)
-  if not success then
-    print("Skipping integration tests - no IP configured")
-    print("Set IP environment variable or create test-config.lua with default_ip")
+  -- Only use environment variable IP for integration tests
+  local env_ip = os.getenv("IP")
+  if not env_ip or env_ip == "" then
+    print("Skipping integration tests - no IP environment variable configured")
+    print("Set IP=your.device.ip.address to run integration tests")
     return true
   end
-  ip = result
+  ip = env_ip
   return false
 end
 
@@ -80,9 +91,11 @@ test.describe("Can control brightness", function()
     
     local brightness = twinkly.get_brightness(ip)
     test.assert_not_nil(brightness, "Should get brightness from device")
-    -- Allow some tolerance in brightness reading
-    test.assert_true(math.abs(brightness - level) <= 5, 
-                     string.format("Brightness should be close to %d, got %d", level, brightness))
+    -- Allow some tolerance in brightness reading due to device processing
+    local BRIGHTNESS_TOLERANCE = 5
+    test.assert_true(math.abs(brightness - level) <= BRIGHTNESS_TOLERANCE, 
+                     string.format("Brightness should be close to %d, got %d (tolerance: %d)", 
+                                   level, brightness, BRIGHTNESS_TOLERANCE))
   end
 end)
 

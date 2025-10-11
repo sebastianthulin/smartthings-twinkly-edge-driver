@@ -14,10 +14,7 @@ end)
 
 -- Test environment variable override
 test.describe("Environment variables override config", function()
-  -- Set a test IP
-  os.execute("export TEST_IP=192.168.99.99")
-  
-  -- Mock environment variable access
+  -- Mock environment variable access (os.execute won't affect current process)
   local original_getenv = os.getenv
   os.getenv = function(var)
     if var == "IP" then

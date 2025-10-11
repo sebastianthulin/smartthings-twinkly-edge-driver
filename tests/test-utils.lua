@@ -204,8 +204,9 @@ function test_utils.wait_with_timeout(condition, timeout, interval)
     if condition() then
       return true
     end
-    -- Simple sleep implementation
-    os.execute("sleep " .. interval)
+    -- Cross-platform sleep using socket library
+    local socket = require("socket")
+    socket.sleep(interval)
   end
   
   return false

@@ -15,7 +15,12 @@ print("")
 -- Function to run a test file
 local function run_test_file(filepath, test_name)
   print("Running " .. test_name .. "...")
-  local cmd = "cd tests && lua5.3 " .. filepath
+  
+  -- Get the current working directory and construct absolute paths
+  local current_dir = os.getenv("PWD") or "."
+  local tests_dir = current_dir .. "/tests"
+  local cmd = string.format("cd '%s' && lua5.3 '%s'", tests_dir, filepath)
+  
   local result = os.execute(cmd)
   
   -- On different systems, os.execute returns different values
