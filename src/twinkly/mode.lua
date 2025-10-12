@@ -2,6 +2,7 @@ local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local login = require "twinkly.login"
+local config = require "twinkly.config"
 local ok, log = pcall(require, "log")
 if not ok then
   log = {
@@ -23,16 +24,16 @@ function mode.get_mode(ip)
 
   local resp = {}
   local res, code, _, status = http.request{
-    url = "http://" .. ip .. "/xled/v1/led/mode",
+    url = config.build_url(ip, "mode"),
     method = "GET",
-    headers = { ["X-Auth-Token"] = token },
+    headers = { [config.http.auth_header] = token },
     sink = ltn12.sink.table(resp),
   }
 
   local body = table.concat(resp)
   log.debug("Response code=" .. tostring(code) .. " body=" .. tostring(body))
 
-  if not res or code ~= 200 then
+  if not res or code ~= config.http.success_code then
     return nil, "Failed to get mode: " .. tostring(status) .. " Body: " .. body
   end
 
