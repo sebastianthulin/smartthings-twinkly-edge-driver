@@ -226,7 +226,7 @@ function DeviceService:list_effects(ip, type)
         local decoded = json.decode(body)
         if decoded then
           -- Try different response formats
-          local movies = decoded.movies or decoded.effects or (decoded.entries and decoded.entries)
+          local movies = decoded.movies or decoded.effects or decoded.entries
           if movies and type(movies) == "table" and #movies > 0 then
             self._logger:debug("Found builtin effects using endpoint: " .. endpoint)
             return movies
