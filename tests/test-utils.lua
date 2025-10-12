@@ -9,13 +9,13 @@ function test_utils.load_config()
   
   -- Try to load test-config.lua first
   local ok, loaded_config = pcall(require, "test-config")
-  if ok and loaded_config then
+  if ok and type(loaded_config) == "table" then
     config = loaded_config
   else
     -- Fall back to example config - need to navigate to parent directory
     package.path = package.path .. ";../?.lua"
     local example_ok, example_config = pcall(require, "test-config.example")
-    if example_ok and example_config then
+    if example_ok and type(example_config) == "table" then
       config = example_config
     else
       -- Provide basic defaults if no config is found

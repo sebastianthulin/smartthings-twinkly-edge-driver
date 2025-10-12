@@ -1,6 +1,6 @@
-#!/usr/bin/env lua5.3
+#!/usr/bin/env lua5.4
 -- Test runner for Twinkly Edge Driver
--- Usage: lua5.3 run-tests.lua [test-type]
+-- Usage: lua5.4 run-tests.lua [test-type]
 -- test-type can be: all, unit, integration
 
 package.path = package.path .. ";tests/?.lua;src/?.lua"
@@ -19,7 +19,7 @@ local function run_test_file(filepath, test_name)
   -- Get the current working directory and construct absolute paths
   local current_dir = os.getenv("PWD") or "."
   local tests_dir = current_dir .. "/tests"
-  local cmd = string.format("cd '%s' && lua5.3 '%s'", tests_dir, filepath)
+  local cmd = string.format("cd '%s' && lua '%s'", tests_dir, filepath)
   
   local result = os.execute(cmd)
   

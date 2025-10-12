@@ -6,7 +6,7 @@ This guide explains how to run tests for the Twinkly SmartThings Edge Driver loc
 
 ```bash
 # Install Lua 5.3 and dependencies (Ubuntu/Debian)
-sudo apt-get install lua5.3 lua5.3-dev luarocks
+sudo apt-get install lua5.4 lua5.4-dev luarocks
 sudo luarocks install luasocket dkjson luaossl cosock lua-log
 
 # Run all tests (unit tests only, no device required)

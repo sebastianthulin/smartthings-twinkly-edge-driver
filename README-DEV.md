@@ -28,11 +28,11 @@ The driver includes a comprehensive test suite that can run locally without Smar
 
 #### Test Framework Setup
 
-Ensure `lua5.3` is available and required dependencies are installed:
+Ensure `lua` is available and required dependencies are installed:
 
 ```bash
 # Install Lua 5.3 and LuaRocks
-sudo apt-get install lua5.3 lua5.3-dev luarocks
+sudo apt-get install lua5.4 lua5.4-dev luarocks
 
 # Install required Lua dependencies
 sudo luarocks install luasocket
