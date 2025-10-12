@@ -64,6 +64,12 @@ interfaces.IDeviceService = class("IDeviceService", {
   end,
   get_color = function(self, ip)
     error("IDeviceService:get_color() must be implemented by concrete class")
+  end,
+  list_effects = function(self, ip, type)
+    error("IDeviceService:list_effects() must be implemented by concrete class")
+  end,
+  set_effect = function(self, ip, effect_id)
+    error("IDeviceService:set_effect() must be implemented by concrete class")
   end
 })
 

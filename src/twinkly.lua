@@ -54,6 +54,15 @@ twinkly.get_mode = function(ip)
   return controller:get_mode(ip)
 end
 
+-- Effects control
+twinkly.list_effects = function(ip, type)
+  return controller:list_effects(ip, type)
+end
+
+twinkly.set_effect = function(ip, effect_id)
+  return controller:set_effect(ip, effect_id)
+end
+
 -- Expose the controller for advanced usage
 twinkly._controller = controller
 

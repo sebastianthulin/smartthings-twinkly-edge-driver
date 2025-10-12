@@ -42,6 +42,7 @@ local function run_unit_tests()
   local unit_tests = {
     {"unit-test-utils.lua", "Utils Tests"},
     {"unit-test-config.lua", "Config Tests"},
+    {"unit-test-effects.lua", "Effects Tests"},
     {"unit-test-login.lua", "Login Tests"}, 
     {"unit-test-driver.lua", "Driver Tests"}
   }

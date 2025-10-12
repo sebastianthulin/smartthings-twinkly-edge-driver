@@ -5,6 +5,7 @@ local class = require "vendor.30log"
 local interfaces = require "interfaces"
 local json = require "dkjson"
 local socket = require "socket" -- for short sleep between reauth retries
+local config = require "twinkly.config"
 
 local DeviceService = interfaces.IDeviceService:extend("DeviceService")
 
@@ -203,6 +204,83 @@ function DeviceService:get_color(ip)
   end
   
   return nil
+end
+
+-- List available effects on device (both builtin and user-downloaded)  
+function DeviceService:list_effects(ip, type)
+  type = type or "all"  -- default to all effects
+  
+  local endpoints = {
+    builtin = config.get_endpoint("movies"),
+    user = config.get_endpoint("user_movies")
+  }
+
+  local list = {}
+
+  -- Get builtin effects
+  if type == "all" or type == "builtin" then
+    local ok, code, status, body = self:_make_authenticated_request(ip, endpoints.builtin, "GET")
+    if ok then
+      local decoded = json.decode(body)
+      if decoded and decoded.movies then
+        for _, v in ipairs(decoded.movies) do
+          -- Mark as builtin type for identification
+          v.type = "builtin"
+          table.insert(list, v)
+        end
+      else
+        self._logger:debug("No builtin effects found or invalid response for " .. ip)
+      end
+    else
+      self._logger:warn("Failed to fetch builtin effects for " .. ip .. ": " .. tostring(status))
+    end
+  end
+
+  -- Get user-downloaded effects  
+  if type == "all" or type == "user" then
+    local ok, code, status, body = self:_make_authenticated_request(ip, endpoints.user, "GET")
+    if ok then
+      local decoded = json.decode(body)
+      if decoded and decoded.movies then
+        for _, v in ipairs(decoded.movies) do
+          -- Mark as user type for identification
+          v.type = "user"
+          table.insert(list, v)
+        end
+      else
+        self._logger:debug("No user effects found or invalid response for " .. ip)
+      end
+    else
+      self._logger:warn("Failed to fetch user effects for " .. ip .. ": " .. tostring(status))
+    end
+  end
+
+  return list
+end
+
+-- Activate a specific effect by ID
+function DeviceService:set_effect(ip, effect_id)
+  if not effect_id then
+    return nil, "Effect ID is required"
+  end
+  
+  self._logger:debug("Setting effect " .. tostring(effect_id) .. " on " .. tostring(ip))
+
+  -- First set mode to movie to enable effects
+  local ok, err = self:set_mode(ip, "movie")
+  if not ok then 
+    return nil, err 
+  end
+
+  local payload = { id = effect_id }
+  local ok2, code, status, body = self:_make_authenticated_request(
+    ip, config.get_endpoint("movie_play"), "POST", payload)
+
+  if not ok2 then
+    return nil, "Failed to set effect: " .. tostring(status)
+  end
+  
+  return true, body
 end
 
 return DeviceService
