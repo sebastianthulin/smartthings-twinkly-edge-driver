@@ -28,10 +28,12 @@ test.describe("DeviceService interface includes effects methods", function()
   local TestService = IDeviceService:extend("TestService")
   function TestService:list_effects() return {} end
   function TestService:set_effect() return true end
+  function TestService:get_effect() return {} end
   
   local instance = TestService()
   test.assert_not_nil(instance.list_effects, "Should have list_effects method")
   test.assert_not_nil(instance.set_effect, "Should have set_effect method")
+  test.assert_not_nil(instance.get_effect, "Should have get_effect method")
 end)
 
 -- Test controller has effects methods (static test)
@@ -50,6 +52,7 @@ test.describe("TwinklyController has effects methods", function()
   -- Test that the class has the expected methods defined
   test.assert_not_nil(TwinklyController.list_effects, "Should have list_effects method defined")
   test.assert_not_nil(TwinklyController.set_effect, "Should have set_effect method defined")
+  test.assert_not_nil(TwinklyController.get_effect, "Should have get_effect method defined")
 end)
 
 -- Test twinkly facade exposes effects methods (static test)
@@ -67,8 +70,10 @@ test.describe("Twinkly facade exposes effects methods", function()
   
   test.assert_not_nil(twinkly.list_effects, "Should have list_effects function")
   test.assert_not_nil(twinkly.set_effect, "Should have set_effect function")
+  test.assert_not_nil(twinkly.get_effect, "Should have get_effect function")
   test.assert_equals(type(twinkly.list_effects), "function", "list_effects should be a function")
   test.assert_equals(type(twinkly.set_effect), "function", "set_effect should be a function")
+  test.assert_equals(type(twinkly.get_effect), "function", "get_effect should be a function")
 end)
 
 -- Run tests

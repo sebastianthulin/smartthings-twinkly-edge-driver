@@ -6,6 +6,60 @@ local login = require "twinkly.login"
 local socket = require "socket"
 local config = require "twinkly.config"
 
+-- Custom capability definition for Twinkly Effects
+local effects_capability_definition = {
+  id = "sebastianthulin44463.twinklyEffects",
+  version = 1,
+  commands = {
+    listEffects = {
+      name = "listEffects",
+      arguments = {}
+    },
+    setEffect = {
+      name = "setEffect", 
+      arguments = {
+        {
+          name = "effectId",
+          optional = false,
+          type = "STRING"
+        }
+      }
+    }
+  },
+  attributes = {
+    availableEffects = {
+      schema = {
+        type = "object",
+        properties = {
+          effects = {
+            type = "array",
+            items = {
+              type = "object",
+              properties = {
+                id = { type = "string" },
+                name = { type = "string" },
+                type = { type = "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    currentEffect = {
+      schema = {
+        type = "object",
+        properties = {
+          id = { type = "string" },
+          name = { type = "string" }
+        }
+      }
+    }
+  }
+}
+
+-- Register the custom capability
+local effects_cap = caps.build_cap_from_json_string(json.encode(effects_capability_definition))
+
 local ok, log = pcall(require, "log")
 if not ok then
   log = {
@@ -64,12 +118,39 @@ local function switch_on(driver, device, command)
   local ip = resolve_ip(device)
   log.info("ON -> " .. tostring(ip or "?"))
   if ip then
-    local ok, result = pcall(twinkly.set_mode, ip, "movie")
-    if ok then
-      log.info("set_mode returned OK: " .. tostring(result))
-      device:emit_event(caps.switch.switch.on())
+    -- Check if we have a last effect to restore
+    local last_effect = device:get_field("last_effect_id")
+    
+    if last_effect then
+      log.info("Restoring last effect: " .. tostring(last_effect))
+      local ok, result = pcall(twinkly.set_effect, ip, last_effect)
+      if ok then
+        log.info("Restored last effect successfully: " .. tostring(result))
+        device:emit_event(caps.switch.switch.on())
+        -- Update current effect status
+        local effect_info = twinkly.get_effect(ip)
+        if effect_info then
+          device:emit_event(effects_cap.currentEffect(effect_info))
+        end
+      else
+        log.warn("Failed to restore last effect, using default mode: " .. tostring(result))
+        -- Fallback to regular movie mode
+        local ok2, result2 = pcall(twinkly.set_mode, ip, "movie")
+        if ok2 then
+          device:emit_event(caps.switch.switch.on())
+        else
+          log.error("set_mode threw error: " .. tostring(result2))
+        end
+      end
     else
-      log.error("set_mode threw error: " .. tostring(result))
+      -- No last effect, just turn on in movie mode
+      local ok, result = pcall(twinkly.set_mode, ip, "movie")
+      if ok then
+        log.info("set_mode returned OK: " .. tostring(result))
+        device:emit_event(caps.switch.switch.on())
+      else
+        log.error("set_mode threw error: " .. tostring(result))
+      end
     end
   end
 end
@@ -223,6 +304,54 @@ local function set_saturation(driver, device, command)
         device:emit_event(caps.colorControl.saturation(sat))
       else
         log.error("set_color_hsv failed: " .. tostring(result))
+      end
+    end)
+  end
+end
+
+-----------------------------------------------------------
+-- EFFECTS CONTROL  
+-----------------------------------------------------------
+local function list_effects(driver, device, command)
+  local ip = resolve_ip(device)
+  log.info("LIST_EFFECTS -> " .. tostring(ip or "?"))
+  
+  if ip then
+    suspend_polling_during_operation(driver, device, function()
+      local effects = twinkly.list_effects(ip, "all")
+      if effects then
+        log.info("Found " .. #effects .. " effects")
+        device:emit_event(effects_cap.availableEffects({ effects = effects }))
+      else
+        log.error("Failed to list effects")
+      end
+    end)
+  end
+end
+
+local function set_effect(driver, device, command)
+  local ip = resolve_ip(device)
+  local effect_id = command.args.effectId
+  log.info(string.format("SET_EFFECT -> %s effect=%s", tostring(ip or "?"), tostring(effect_id)))
+  
+  if ip and effect_id then
+    suspend_polling_during_operation(driver, device, function()
+      local ok, result = pcall(twinkly.set_effect, ip, effect_id)
+      if ok then
+        log.info("Effect set successfully: " .. tostring(result))
+        device:emit_event(caps.switch.switch.on())
+        -- Store the current effect for later retrieval
+        device:set_field("last_effect_id", effect_id, { persist = true })
+        
+        -- Try to get effect name for display
+        local effect_info = twinkly.get_effect(ip)
+        if effect_info then
+          device:emit_event(effects_cap.currentEffect(effect_info))
+        else
+          device:emit_event(effects_cap.currentEffect({ id = effect_id, name = "Effect " .. effect_id }))
+        end
+      else
+        log.error("Failed to set effect: " .. tostring(result))
       end
     end)
   end
@@ -473,6 +602,10 @@ local twinkly_driver = Driver("twinkly", {
     },
     [caps.refresh.ID] = {
       [caps.refresh.commands.refresh.NAME] = handle_refresh,
+    },
+    [effects_cap.ID] = {
+      [effects_cap.commands.listEffects.NAME] = list_effects,
+      [effects_cap.commands.setEffect.NAME] = set_effect,
     }
   }
 })
