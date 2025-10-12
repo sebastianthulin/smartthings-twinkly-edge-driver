@@ -29,6 +29,7 @@ config.timing = {
   reauth_delay = 0.3,          -- Delay before retrying after auth failure
   token_refresh_delay = 0.4,   -- Delay after token refresh
   poll_failure_delay = 0.3,    -- Delay after polling failure
+  polling_resume_delay = 2,    -- Delay before resuming polling after device operations
   
   -- Default intervals
   default_poll_interval = 30,  -- Default device polling interval (seconds)

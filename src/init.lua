@@ -18,8 +18,7 @@ end
 
 local schedule_poll
 
--- Constants
-local POLLING_RESUME_DELAY = 2  -- seconds to wait before resuming polling after device operations
+
 
 -----------------------------------------------------------
 -- Resolve IP helper
@@ -51,7 +50,7 @@ local function suspend_polling_during_operation(driver, device, operation_func)
   local result = operation_func()
 
   -- Resume polling after a brief delay to allow operation to complete
-  driver:call_with_delay(POLLING_RESUME_DELAY, function()
+  driver:call_with_delay(config.timing.polling_resume_delay, function()
     schedule_poll(driver, device)
   end)
 
