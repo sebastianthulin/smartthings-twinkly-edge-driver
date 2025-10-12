@@ -69,6 +69,7 @@ A shorter interval makes the device more responsive but increases network traffi
 | **Switch** | Turn lights on and off |
 | **Brightness** | Adjust light intensity (0–100%) |
 | **Color Control** | Set colors via SmartThings color picker |
+| **Effects Control** | List and activate Twinkly's built-in and user-downloaded effects |
 | **Refresh** | Manually request state update |
 | **Local Control** | Works fully offline once configured |
 
@@ -85,7 +86,7 @@ A shorter interval makes the device more responsive but increases network traffi
 - **Single-Device Per IP**  
   Each placeholder corresponds to one Twinkly device.
 - **Effect Selection**  
-  Currently, selecting custom Twinkly “effects” (from the Twinkly app) is not supported — only static color and brightness control are available.
+  ✅ **Now supported!** The driver can list and activate Twinkly's built-in and user-downloaded effects via the API layer.
 - **Color Accuracy**  
   Twinkly uses a non-standard RGB order on some firmware versions. If colors appear swapped (e.g., red appears green), ensure your firmware is up-to-date.
 

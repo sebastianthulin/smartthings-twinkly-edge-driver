@@ -17,7 +17,10 @@ config.api = {
     verify = "/xled/v1/verify",
     mode = "/xled/v1/led/mode", 
     brightness = "/xled/v1/led/out/brightness",
-    color = "/xled/v1/led/color"
+    color = "/xled/v1/led/color",
+    movies = "/xled/v1/led/movies",
+    user_movies = "/xled/v1/led/user_movies",
+    movie_play = "/xled/v1/led/movie/play"
   }
 }
 

@@ -58,6 +58,15 @@ function TwinklyController:get_color(ip)
   return self._device_service:get_color(ip)
 end
 
+-- Effects control
+function TwinklyController:list_effects(ip, type)
+  return self._device_service:list_effects(ip, type)
+end
+
+function TwinklyController:set_effect(ip, effect_id)
+  return self._device_service:set_effect(ip, effect_id)
+end
+
 -- Service container access for advanced usage
 function TwinklyController:get_service_container()
   return self._container
