@@ -4,11 +4,22 @@
 package.path = package.path .. ";src/?.lua"
 _G.IS_LOCAL_TEST = true -- ensures blocking socket is used locally
 
+-- Mock log for local testing
+package.preload["log"] = function()
+  return {
+    debug = function(...) end,
+    info = function(...) print("[INFO]", ...) end,
+    warn = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
+
 local login = require "twinkly.login"
 local http = require("twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
 local socket = require "socket"
+local config = require "twinkly.config"
 
 local ip = arg[1]
 if not ip then
@@ -24,12 +35,12 @@ local function post_color(r,g,b)
   local body = json.encode({ red = r, green = g, blue = b })
   local resp = {}
   local ok, code = http.request{
-    url = "http://" .. ip .. "/xled/v1/led/color",
+    url = config.build_url(ip, "color"),
     method = "POST",
     headers = {
-      ["Content-Type"] = "application/json",
-      ["Content-Length"] = tostring(#body),
-      ["X-Auth-Token"] = token
+      ["Content-Type"] = config.api.content_type,
+      [config.http.content_length_header] = tostring(#body),
+      [config.http.auth_header] = token
     },
     source = ltn12.source.string(body),
     sink = ltn12.sink.table(resp),

@@ -1,5 +1,16 @@
 package.path = package.path .. ";src/?.lua"
 
+-- Set local test flag and mock log for legacy test
+_G.IS_LOCAL_TEST = true
+package.preload["log"] = function()
+  return {
+    debug = function(...) end,
+    info = function(...) print("[INFO]", ...) end,
+    warn = function(...) print("[WARN]", ...) end,
+    error = function(...) print("[ERROR]", ...) end,
+  }
+end
+
 local twinkly = require "twinkly"
 local args = {...}
 if #args < 2 then

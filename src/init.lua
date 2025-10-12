@@ -4,6 +4,7 @@ local json = require "dkjson"
 local twinkly = require "twinkly"
 local login = require "twinkly.login"
 local socket = require "socket"
+local config = require "twinkly.config"
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -214,7 +215,7 @@ local function poll_state(driver, device)
   local ok, mode_data = pcall(twinkly.get_mode, ip)
   if not ok or not mode_data then
     log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_data)))
-    if socket and socket.sleep then socket.sleep(0.3) end
+    if socket and socket.sleep then socket.sleep(config.timing.poll_failure_delay) end
     login.clear_token(ip)
     local retry_token = login.ensure_token(ip)
     if retry_token then
@@ -355,7 +356,7 @@ local function device_added(driver, device)
     device:set_field("ipAddress", "", { persist = true })
   end
   if not device:get_field("pollInterval") then
-    device:set_field("pollInterval", 30, { persist = true })
+    device:set_field("pollInterval", config.timing.default_poll_interval, { persist = true })
   end
 
   log.info("Placeholder Twinkly device created. Please set the IP address in preferences.")
@@ -403,8 +404,8 @@ end
 -- SCHEDULE POLLING
 -----------------------------------------------------------
 function schedule_poll(driver, device)
-  local interval = tonumber(device:get_field("pollInterval")) or 30
-  if interval < 1 then interval = 30 end
+  local interval = tonumber(device:get_field("pollInterval")) or config.timing.default_poll_interval
+  if interval < config.timing.min_poll_interval then interval = config.timing.default_poll_interval end
 
   local timer = driver:call_with_delay(interval, function()
     poll_state(driver, device)
