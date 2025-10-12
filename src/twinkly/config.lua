@@ -20,7 +20,13 @@ config.api = {
     color = "/xled/v1/led/color",
     movies = "/xled/v1/led/movies",
     user_movies = "/xled/v1/led/user_movies",
-    movie_play = "/xled/v1/led/movie/play"
+    movie_play = "/xled/v1/led/movie/play",
+    -- Alternative endpoints for different firmware versions
+    movie_singular = "/xled/v1/led/movie",
+    effects = "/xled/v1/led/effects",
+    effects_current = "/xled/v1/led/effects/current",
+    movie_config = "/xled/v1/led/movie/config",
+    movie_current = "/xled/v1/led/movie/current"
   }
 }
 

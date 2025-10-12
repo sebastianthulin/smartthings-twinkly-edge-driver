@@ -16,6 +16,16 @@ test.describe("Config includes effects endpoints", function()
   test.assert_equals(config.api.endpoints.movies, "/xled/v1/led/movies", "Movies endpoint should be correct")
   test.assert_equals(config.api.endpoints.user_movies, "/xled/v1/led/user_movies", "User movies endpoint should be correct")
   test.assert_equals(config.api.endpoints.movie_play, "/xled/v1/led/movie/play", "Movie play endpoint should be correct")
+  
+  -- Test new alternative endpoints for better compatibility
+  test.assert_not_nil(config.api.endpoints.movie_singular, "Should have movie_singular endpoint")
+  test.assert_not_nil(config.api.endpoints.effects, "Should have effects endpoint")
+  test.assert_not_nil(config.api.endpoints.effects_current, "Should have effects_current endpoint")
+  test.assert_not_nil(config.api.endpoints.movie_config, "Should have movie_config endpoint")
+  test.assert_not_nil(config.api.endpoints.movie_current, "Should have movie_current endpoint")
+  test.assert_equals(config.api.endpoints.movie_singular, "/xled/v1/led/movie", "Movie singular endpoint should be correct")
+  test.assert_equals(config.api.endpoints.effects, "/xled/v1/led/effects", "Effects endpoint should be correct")
+  test.assert_equals(config.api.endpoints.effects_current, "/xled/v1/led/effects/current", "Effects current endpoint should be correct")
 end)
 
 -- Test DeviceService interface includes effects methods
