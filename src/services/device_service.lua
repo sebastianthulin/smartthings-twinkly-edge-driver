@@ -283,4 +283,34 @@ function DeviceService:set_effect(ip, effect_id)
   return true, body
 end
 
+-- Get current effect information
+function DeviceService:get_effect(ip)
+  self._logger:debug("Getting current effect for " .. tostring(ip))
+  
+  -- Get current mode first to determine if we're in movie mode
+  local mode_data = self:get_mode(ip)
+  if not mode_data or (mode_data.mode or mode_data) ~= "movie" then
+    return nil, "Device is not in movie mode"
+  end
+  
+  -- Try to get current movie status 
+  local ok, code, status, body = self:_make_authenticated_request(
+    ip, "/xled/v1/led/movie/current", "GET")
+  
+  if not ok then
+    self._logger:warn("Failed to get current effect for " .. ip .. ": " .. tostring(status))
+    return nil, "Failed to get current effect: " .. tostring(status)
+  end
+  
+  local decoded = json.decode(body)
+  if decoded and decoded.id then
+    return {
+      id = decoded.id,
+      name = decoded.name or "Unknown Effect"
+    }
+  end
+  
+  return nil, "No current effect information available"
+end
+
 return DeviceService

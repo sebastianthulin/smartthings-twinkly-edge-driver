@@ -69,9 +69,35 @@ A shorter interval makes the device more responsive but increases network traffi
 | **Switch** | Turn lights on and off |
 | **Brightness** | Adjust light intensity (0–100%) |
 | **Color Control** | Set colors via SmartThings color picker |
-| **Effects Control** | List and activate Twinkly's built-in and user-downloaded effects |
+| **Effects Control** | ✨ **Full GUI Support!** List and activate Twinkly's built-in and user-downloaded effects directly from SmartThings app |
 | **Refresh** | Manually request state update |
 | **Local Control** | Works fully offline once configured |
+
+---
+
+## 🎆 Using Effects
+
+The driver now provides **full SmartThings GUI support** for Twinkly effects!
+
+### In the SmartThings App
+
+1. **View Available Effects**: Use the "List Effects" command to refresh the list of available effects
+2. **Activate Effects**: Use the "Set Effect" command with the effect ID to activate any effect
+3. **Current Status**: The app shows which effect is currently active
+4. **Smart Memory**: When you turn the light on after using an effect, it automatically restores your last effect
+
+### Effect Types Supported
+
+- **Built-in Effects**: Pre-installed Twinkly effects (like "Falling Snow", "Fireworks", etc.)
+- **User Effects**: Custom effects you've downloaded or created via the Twinkly app
+- **All Effects**: Complete list including both built-in and user effects
+
+### Smart Integration
+
+- **Automatic Turn-On**: Setting an effect automatically turns the device on
+- **Effect Memory**: The last used effect is remembered and restored when turning on
+- **Brightness Control**: Brightness adjustments work with active effects
+- **Status Updates**: Real-time status shows current effect information
 
 ---
 
@@ -86,7 +112,11 @@ A shorter interval makes the device more responsive but increases network traffi
 - **Single-Device Per IP**  
   Each placeholder corresponds to one Twinkly device.
 - **Effect Selection**  
-  ✅ **Now supported!** The driver can list and activate Twinkly's built-in and user-downloaded effects via the API layer.
+  ✅ **Full SmartThings GUI support!** The driver now provides complete effects control directly in the SmartThings app with:
+  - List all available effects (built-in and user-downloaded)
+  - Activate effects with a simple tap
+  - View current effect status  
+  - Automatic "last effect memory" when turning the light on
 - **Color Accuracy**  
   Twinkly uses a non-standard RGB order on some firmware versions. If colors appear swapped (e.g., red appears green), ensure your firmware is up-to-date.
 

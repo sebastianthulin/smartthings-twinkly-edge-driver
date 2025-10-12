@@ -63,6 +63,10 @@ twinkly.set_effect = function(ip, effect_id)
   return controller:set_effect(ip, effect_id)
 end
 
+twinkly.get_effect = function(ip)
+  return controller:get_effect(ip)
+end
+
 -- Expose the controller for advanced usage
 twinkly._controller = controller
 

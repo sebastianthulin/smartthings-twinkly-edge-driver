@@ -67,6 +67,10 @@ function TwinklyController:set_effect(ip, effect_id)
   return self._device_service:set_effect(ip, effect_id)
 end
 
+function TwinklyController:get_effect(ip)
+  return self._device_service:get_effect(ip)
+end
+
 -- Service container access for advanced usage
 function TwinklyController:get_service_container()
   return self._container
