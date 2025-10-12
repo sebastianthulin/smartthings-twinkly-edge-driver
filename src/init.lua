@@ -18,6 +18,8 @@ end
 
 local schedule_poll
 
+
+
 -----------------------------------------------------------
 -- Resolve IP helper
 -----------------------------------------------------------
@@ -31,6 +33,28 @@ local function resolve_ip(device)
     return nil
   end
   return ip
+end
+
+-----------------------------------------------------------
+-- Polling suspension helper
+-----------------------------------------------------------
+local function suspend_polling_during_operation(driver, device, operation_func)
+  -- Temporarily suspend polling to avoid interference during device operations
+  local poll_timer = device:get_field("poll_timer")
+  if poll_timer then
+    driver:cancel_timer(poll_timer)
+    device:set_field("poll_timer", nil)
+  end
+
+  -- Execute the device operation
+  local result = operation_func()
+
+  -- Resume polling after a brief delay to allow operation to complete
+  driver:call_with_delay(config.timing.polling_resume_delay, function()
+    schedule_poll(driver, device)
+  end)
+
+  return result
 end
 
 -----------------------------------------------------------
@@ -132,12 +156,14 @@ local function set_level(driver, device, command)
   local level = command.args.level
   log.info(string.format("SET_LEVEL -> %s level=%d", tostring(ip or "?"), level))
   if ip then
-    local ok, result = pcall(twinkly.set_brightness, ip, level)
-    if ok then
-      device:emit_event(caps.switchLevel.level(level))
-    else
-      log.error("set_brightness failed: " .. tostring(result))
-    end
+    suspend_polling_during_operation(driver, device, function()
+      local ok, result = pcall(twinkly.set_brightness, ip, level)
+      if ok then
+        device:emit_event(caps.switchLevel.level(level))
+      else
+        log.error("set_brightness failed: " .. tostring(result))
+      end
+    end)
   end
 end
 
@@ -151,14 +177,16 @@ local function set_color(driver, device, command)
   log.info(string.format("SET_COLOR -> %s hue=%d sat=%d", tostring(ip or "?"), hue, sat))
 
   if ip then
-    local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-    if ok then
-      device:emit_event(caps.colorControl.hue(hue))
-      device:emit_event(caps.colorControl.saturation(sat))
-    else
-      log.error("set_color_hsv failed: " .. tostring(result))
-    end
+    suspend_polling_during_operation(driver, device, function()
+      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
+      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
+      if ok then
+        device:emit_event(caps.colorControl.hue(hue))
+        device:emit_event(caps.colorControl.saturation(sat))
+      else
+        log.error("set_color_hsv failed: " .. tostring(result))
+      end
+    end)
   end
 end
 
@@ -168,14 +196,16 @@ local function set_hue(driver, device, command)
   log.info(string.format("SET_HUE -> %s hue=%d", tostring(ip or "?"), hue))
 
   if ip then
-    local sat = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.saturation.NAME) or 100
-    local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-    if ok then
-      device:emit_event(caps.colorControl.hue(hue))
-    else
-      log.error("set_color_hsv failed: " .. tostring(result))
-    end
+    suspend_polling_during_operation(driver, device, function()
+      local sat = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.saturation.NAME) or 100
+      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
+      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
+      if ok then
+        device:emit_event(caps.colorControl.hue(hue))
+      else
+        log.error("set_color_hsv failed: " .. tostring(result))
+      end
+    end)
   end
 end
 
@@ -185,14 +215,16 @@ local function set_saturation(driver, device, command)
   log.info(string.format("SET_SAT -> %s sat=%d", tostring(ip or "?"), sat))
 
   if ip then
-    local hue = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.hue.NAME) or 0
-    local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-    local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-    if ok then
-      device:emit_event(caps.colorControl.saturation(sat))
-    else
-      log.error("set_color_hsv failed: " .. tostring(result))
-    end
+    suspend_polling_during_operation(driver, device, function()
+      local hue = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.hue.NAME) or 0
+      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
+      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
+      if ok then
+        device:emit_event(caps.colorControl.saturation(sat))
+      else
+        log.error("set_color_hsv failed: " .. tostring(result))
+      end
+    end)
   end
 end
 
