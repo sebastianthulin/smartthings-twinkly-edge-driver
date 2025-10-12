@@ -5,6 +5,7 @@ local class = require "vendor.30log"
 local interfaces = require "interfaces"
 local json = require "dkjson"
 local socket = require "socket" -- for short sleep between reauth retries
+local config = require "twinkly.config"
 
 local DeviceService = interfaces.IDeviceService:extend("DeviceService")
 
@@ -210,8 +211,8 @@ function DeviceService:list_effects(ip, type)
   type = type or "all"  -- default to all effects
   
   local endpoints = {
-    builtin = "/xled/v1/led/movies",
-    user = "/xled/v1/led/user_movies"
+    builtin = config.get_endpoint("movies"),
+    user = config.get_endpoint("user_movies")
   }
 
   local list = {}
@@ -273,7 +274,7 @@ function DeviceService:set_effect(ip, effect_id)
 
   local payload = { id = effect_id }
   local ok2, code, status, body = self:_make_authenticated_request(
-    ip, "/xled/v1/led/movie/play", "POST", payload)
+    ip, config.get_endpoint("movie_play"), "POST", payload)
 
   if not ok2 then
     return nil, "Failed to set effect: " .. tostring(status)
