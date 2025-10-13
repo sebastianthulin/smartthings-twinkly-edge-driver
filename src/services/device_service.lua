@@ -206,92 +206,76 @@ function DeviceService:get_color(ip)
   return nil
 end
 
--- List available effects on device (both builtin and user-downloaded)  
+-- List available effects on device (both builtin and user-uploaded movies)
+-- Based on official Twinkly REST API documentation  
 function DeviceService:list_effects(ip, type)
   type = type or "all"  -- default to all effects
   
   local list = {}
 
-  -- Helper function to try multiple endpoints for builtin effects
-  local function try_builtin_effects()
-    local builtin_endpoints = {
-      config.get_endpoint("movies"),         -- /xled/v1/led/movies (plural)
-      config.get_endpoint("movie_singular"), -- /xled/v1/led/movie (singular)  
-      config.get_endpoint("effects")         -- /xled/v1/led/effects (alternative)
-    }
-    
-    for _, endpoint in ipairs(builtin_endpoints) do
-      local ok, code, status, body = self:_make_authenticated_request(ip, endpoint, "GET")
-      if ok then
-        local decoded = json.decode(body)
-        if decoded then
-          -- Try different response formats
-          local movies = decoded.movies or decoded.effects or decoded.entries
-          if movies and type(movies) == "table" and #movies > 0 then
-            self._logger:debug("Found builtin effects using endpoint: " .. endpoint)
-            return movies
-          end
-        end
-      else
-        self._logger:debug("Endpoint " .. endpoint .. " failed with: " .. tostring(status))
-      end
-    end
-    
-    return nil -- No builtin effects found
-  end
-
-  -- Helper function to try multiple endpoints for user effects  
-  local function try_user_effects()
-    local user_endpoints = {
-      config.get_endpoint("user_movies"), -- /xled/v1/led/user_movies
-      config.get_endpoint("effects")      -- /xled/v1/led/effects (might include user effects)
-    }
-    
-    for _, endpoint in ipairs(user_endpoints) do
-      local ok, code, status, body = self:_make_authenticated_request(ip, endpoint, "GET")
-      if ok then
-        local decoded = json.decode(body)
-        if decoded then
-          -- Try different response formats
-          local movies = decoded.movies or decoded.user_movies or decoded.effects
-          if movies and type(movies) == "table" and #movies > 0 then
-            self._logger:debug("Found user effects using endpoint: " .. endpoint)
-            return movies
-          end
-        end
-      else
-        self._logger:debug("User endpoint " .. endpoint .. " failed with: " .. tostring(status))
-      end
-    end
-    
-    return nil -- No user effects found
-  end
-
-  -- Get builtin effects
+  -- Get builtin effects using /xled/v1/led/effects endpoint
   if type == "all" or type == "builtin" then
-    local builtin_movies = try_builtin_effects()
-    if builtin_movies then
-      for _, v in ipairs(builtin_movies) do
-        -- Mark as builtin type for identification
-        v.type = "builtin"
-        table.insert(list, v)
+    local ok, code, status, body = self:_make_authenticated_request(ip, config.get_endpoint("effects"), "GET")
+    if ok then
+      local decoded = json.decode(body)
+      if decoded and decoded.effects_number and decoded.effects_number > 0 then
+        self._logger:debug("Found " .. decoded.effects_number .. " builtin effects")
+        
+        -- Create effect entries from the response
+        -- If unique_ids are available (firmware 2.5.6+), use them
+        if decoded.unique_ids and type(decoded.unique_ids) == "table" then
+          for i, unique_id in ipairs(decoded.unique_ids) do
+            table.insert(list, {
+              id = i - 1,  -- Effects are 0-indexed
+              unique_id = unique_id,
+              name = "Effect " .. (i - 1), -- Default name
+              type = "builtin"
+            })
+          end
+        else
+          -- Fallback for older firmware - create numbered effects
+          for i = 0, decoded.effects_number - 1 do
+            table.insert(list, {
+              id = i,
+              name = "Effect " .. i,
+              type = "builtin"
+            })
+          end
+        end
+      else
+        self._logger:debug("No builtin effects found or invalid response for " .. ip)
       end
     else
-      self._logger:warn("Failed to fetch builtin effects for " .. ip .. ": no working endpoint found")
+      self._logger:warn("Failed to fetch builtin effects for " .. ip .. ": " .. tostring(status))
     end
   end
 
-  -- Get user-downloaded effects  
+  -- Get user-uploaded movies using /xled/v1/movies endpoint (firmware 2.5.6+)
   if type == "all" or type == "user" then
-    local user_movies = try_user_effects()
-    if user_movies then
-      for _, v in ipairs(user_movies) do
-        -- Mark as user type for identification
-        v.type = "user"
-        table.insert(list, v)
+    local ok, code, status, body = self:_make_authenticated_request(ip, config.get_endpoint("movies"), "GET")
+    if ok then
+      local decoded = json.decode(body)
+      if decoded and decoded.movies and type(decoded.movies) == "table" then
+        self._logger:debug("Found " .. #decoded.movies .. " uploaded movies")
+        
+        for _, movie in ipairs(decoded.movies) do
+          table.insert(list, {
+            id = movie.id,
+            unique_id = movie.unique_id,
+            name = movie.name or "Movie " .. tostring(movie.id),
+            type = "user",
+            -- Additional movie metadata
+            descriptor_type = movie.descriptor_type,
+            leds_per_frame = movie.leds_per_frame,
+            frames_number = movie.frames_number,
+            fps = movie.fps
+          })
+        end
+      else
+        self._logger:debug("No user movies found or invalid response for " .. ip)
       end
     else
-      self._logger:warn("Failed to fetch user effects for " .. ip .. ": no working endpoint found")
+      self._logger:debug("Failed to fetch user movies for " .. ip .. ": " .. tostring(status))
     end
   end
 
@@ -299,73 +283,138 @@ function DeviceService:list_effects(ip, type)
 end
 
 -- Activate a specific effect by ID
-function DeviceService:set_effect(ip, effect_id)
+-- Based on official Twinkly REST API documentation
+function DeviceService:set_effect(ip, effect_id, effect_type)
   if not effect_id then
     return nil, "Effect ID is required"
   end
   
-  self._logger:debug("Setting effect " .. tostring(effect_id) .. " on " .. tostring(ip))
+  self._logger:debug("Setting effect " .. tostring(effect_id) .. " (" .. tostring(effect_type or "unknown") .. ") on " .. tostring(ip))
 
-  -- First set mode to movie to enable effects
-  local ok, err = self:set_mode(ip, "movie")
-  if not ok then 
-    return nil, err 
-  end
+  -- Set appropriate mode and endpoint based on effect type
+  if effect_type == "builtin" then
+    -- For builtin effects: set mode to "effect" and use effects/current endpoint
+    local ok, err = self:set_mode(ip, "effect")
+    if not ok then 
+      return nil, err 
+    end
 
-  -- Try multiple endpoints for setting effects
-  local effect_endpoints = {
-    config.get_endpoint("movie_play"),    -- /xled/v1/led/movie/play
-    config.get_endpoint("movie_config"),  -- /xled/v1/led/movie/config
-    config.get_endpoint("effects_current") -- /xled/v1/led/effects/current
-  }
-  
-  local payload = { id = effect_id }
-  
-  for _, endpoint in ipairs(effect_endpoints) do
-    local ok2, code, status, body = self:_make_authenticated_request(ip, endpoint, "POST", payload)
+    local payload = { effect_id = effect_id }
+    local ok2, code, status, body = self:_make_authenticated_request(
+      ip, config.get_endpoint("effects_current"), "POST", payload)
     
     if ok2 then
-      self._logger:debug("Successfully set effect using endpoint: " .. endpoint)
+      self._logger:debug("Successfully set builtin effect " .. effect_id)
       return true, body
     else
-      self._logger:debug("Effect endpoint " .. endpoint .. " failed with: " .. tostring(status))
+      return nil, "Failed to set builtin effect: " .. tostring(status)
     end
+    
+  elseif effect_type == "user" then
+    -- For user movies: set mode to "movie" and use movies/current endpoint
+    local ok, err = self:set_mode(ip, "movie")
+    if not ok then 
+      return nil, err 
+    end
+
+    local payload = { id = effect_id }
+    local ok2, code, status, body = self:_make_authenticated_request(
+      ip, config.get_endpoint("movies_current"), "POST", payload)
+    
+    if ok2 then
+      self._logger:debug("Successfully set user movie " .. effect_id)
+      return true, body
+    else
+      return nil, "Failed to set user movie: " .. tostring(status)
+    end
+    
+  else
+    -- Legacy mode: try both approaches for backward compatibility
+    self._logger:debug("Effect type not specified, trying both builtin and movie endpoints")
+    
+    -- Try builtin effect first
+    local ok_effect = self:set_mode(ip, "effect")
+    if ok_effect then
+      local payload = { effect_id = effect_id }
+      local ok2, code, status, body = self:_make_authenticated_request(
+        ip, config.get_endpoint("effects_current"), "POST", payload)
+      
+      if ok2 then
+        self._logger:debug("Successfully set as builtin effect " .. effect_id)
+        return true, body
+      end
+    end
+    
+    -- Try as movie if builtin effect failed
+    local ok_movie = self:set_mode(ip, "movie")
+    if ok_movie then
+      local payload = { id = effect_id }
+      local ok3, code2, status2, body2 = self:_make_authenticated_request(
+        ip, config.get_endpoint("movies_current"), "POST", payload)
+      
+      if ok3 then
+        self._logger:debug("Successfully set as user movie " .. effect_id)
+        return true, body2
+      end
+    end
+    
+    return nil, "Failed to set effect: neither builtin effect nor user movie worked"
   end
-  
-  return nil, "Failed to set effect: no working endpoint found"
 end
 
--- Get current effect information
+-- Get current effect information  
+-- Based on official Twinkly REST API documentation
 function DeviceService:get_effect(ip)
   self._logger:debug("Getting current effect for " .. tostring(ip))
   
-  -- Get current mode first to determine if we're in movie mode
+  -- Get current mode first to determine what type of content is active
   local mode_data = self:get_mode(ip)
-  if not mode_data or (mode_data.mode or mode_data) ~= "movie" then
-    return nil, "Device is not in movie mode"
+  if not mode_data then
+    return nil, "Failed to get device mode"
   end
   
-  -- Try multiple endpoints for getting current effect
-  local current_effect_endpoints = {
-    config.get_endpoint("movie_current"),  -- /xled/v1/led/movie/current
-    config.get_endpoint("effects_current") -- /xled/v1/led/effects/current
-  }
+  local mode = mode_data.mode or mode_data
   
-  for _, endpoint in ipairs(current_effect_endpoints) do
-    local ok, code, status, body = self:_make_authenticated_request(ip, endpoint, "GET")
+  if mode == "effect" then
+    -- Device is in effect mode - check current effect
+    local ok, code, status, body = self:_make_authenticated_request(
+      ip, config.get_endpoint("effects_current"), "GET")
     
     if ok then
       local decoded = json.decode(body)
-      if decoded and decoded.id then
-        self._logger:debug("Successfully got current effect using endpoint: " .. endpoint)
+      if decoded and decoded.effect_id ~= nil then
         return {
-          id = decoded.id,
-          name = decoded.name or "Unknown Effect"
+          id = decoded.effect_id,
+          unique_id = decoded.unique_id,
+          name = "Effect " .. decoded.effect_id,
+          type = "builtin"
         }
       end
     else
-      self._logger:debug("Current effect endpoint " .. endpoint .. " failed with: " .. tostring(status))
+      self._logger:debug("Failed to get current effect: " .. tostring(status))
     end
+    
+  elseif mode == "movie" then
+    -- Device is in movie mode - check current movie
+    local ok, code, status, body = self:_make_authenticated_request(
+      ip, config.get_endpoint("movies_current"), "GET")
+    
+    if ok then
+      local decoded = json.decode(body)
+      if decoded and decoded.id ~= nil then
+        return {
+          id = decoded.id,
+          unique_id = decoded.unique_id,
+          name = decoded.name or ("Movie " .. decoded.id),
+          type = "user"
+        }
+      end
+    else
+      self._logger:debug("Failed to get current movie: " .. tostring(status))
+    end
+    
+  else
+    return nil, "Device is not in effect or movie mode (current mode: " .. tostring(mode) .. ")"
   end
   
   return nil, "No current effect information available"

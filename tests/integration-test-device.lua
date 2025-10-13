@@ -47,10 +47,10 @@ print("Running integration tests against device at " .. ip)
 test.describe("Device responds to get_mode", function()
   local mode = twinkly.get_mode(ip)
   test.assert_not_nil(mode, "Should get a mode from device")
-  -- Valid modes from Twinkly API documentation: off, movie, demo, color, effect, rt
-  local valid_modes = {off = true, movie = true, demo = true, color = true, effect = true, rt = true}
+  -- Valid modes from official Twinkly REST API documentation
+  local valid_modes = {off = true, color = true, demo = true, effect = true, movie = true, playlist = true, rt = true}
   test.assert_true(valid_modes[mode], 
-                   "Mode should be one of: off, movie, demo, color, effect, rt - got: " .. tostring(mode))
+                   "Mode should be one of: off, color, demo, effect, movie, playlist, rt - got: " .. tostring(mode))
 end)
 
 -- Test mode switching
