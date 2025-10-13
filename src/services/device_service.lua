@@ -208,13 +208,13 @@ end
 
 -- List available effects on device (both builtin and user-uploaded movies)
 -- Based on official Twinkly REST API documentation  
-function DeviceService:list_effects(ip, type)
-  type = type or "all"  -- default to all effects
+function DeviceService:list_effects(ip, effect_type)
+  effect_type = effect_type or "all"  -- default to all effects
   
   local list = {}
 
   -- Get builtin effects using /xled/v1/led/effects endpoint
-  if type == "all" or type == "builtin" then
+  if effect_type == "all" or effect_type == "builtin" then
     local ok, code, status, body = self:_make_authenticated_request(ip, config.get_endpoint("effects"), "GET")
     if ok then
       local decoded = json.decode(body)
@@ -251,7 +251,7 @@ function DeviceService:list_effects(ip, type)
   end
 
   -- Get user-uploaded movies using /xled/v1/movies endpoint (firmware 2.5.6+)
-  if type == "all" or type == "user" then
+  if effect_type == "all" or effect_type == "user" then
     local ok, code, status, body = self:_make_authenticated_request(ip, config.get_endpoint("movies"), "GET")
     if ok then
       local decoded = json.decode(body)
