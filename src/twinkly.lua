@@ -59,8 +59,8 @@ twinkly.list_effects = function(ip, type)
   return controller:list_effects(ip, type)
 end
 
-twinkly.set_effect = function(ip, effect_id)
-  return controller:set_effect(ip, effect_id)
+twinkly.set_effect = function(ip, effect_id, effect_type)
+  return controller:set_effect(ip, effect_id, effect_type)
 end
 
 twinkly.get_effect = function(ip)
