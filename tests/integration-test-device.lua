@@ -260,13 +260,12 @@ test.describe("Can set and verify random effect", function()
 
     -- Try to verify the current effect (if supported)
     local current_effect = twinkly.get_effect(ip)
-
-    for k, v in pairs(current_effect) do
-      print("  " .. tostring(k) .. ": " .. tostring(v))
-    end
-
-
     if current_effect then
+      print("!!!!!!!!Current effect details: ")
+      for k, v in pairs(current_effect) do
+        print("  " .. tostring(k) .. ": " .. tostring(v))
+      end
+      
       test.assert_equals(current_effect.id, random_effect.id, "Current effect ID should match the set effect ID")
       print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
     else
