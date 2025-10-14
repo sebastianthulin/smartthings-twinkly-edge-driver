@@ -224,6 +224,12 @@ test.describe("Can set and verify random effect", function()
   local effects = twinkly.list_effects(ip, "all")
   test.assert_not_nil(effects, "Should get effects list")
   
+   -- Print debug info, full object random_effect
+  print("!!!!!!!!EFX List: ")
+  for k, v in pairs(effects) do
+    print("  " .. tostring(k) .. ": " .. tostring(v))
+  end
+
   if #effects > 0 then
     -- Choose a random effect from the list
     math.randomseed(os.time())
@@ -243,8 +249,23 @@ test.describe("Can set and verify random effect", function()
     local expected_mode = (random_effect.type == "builtin") and "effect" or "movie"
     test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after setting " .. random_effect.type .. " effect")
     
+    -- Print debug info, full object random_effect
+    print("!!!!!!!!Random effect details: ")
+    for k, v in pairs(random_effect) do
+      print("  " .. tostring(k) .. ": " .. tostring(v))
+    end
+
+    -- Print debug info, current mode
+    print("!!!!!!!!Current device mode: " .. tostring(mode))
+
     -- Try to verify the current effect (if supported)
     local current_effect = twinkly.get_effect(ip)
+
+    for k, v in pairs(current_effect) do
+      print("  " .. tostring(k) .. ": " .. tostring(v))
+    end
+
+
     if current_effect then
       test.assert_equals(current_effect.id, random_effect.id, "Current effect ID should match the set effect ID")
       print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
