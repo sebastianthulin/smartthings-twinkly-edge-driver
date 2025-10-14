@@ -23,7 +23,11 @@ function test_utils.load_config()
         default_ip = "192.168.1.45",
         timeout = 10,
         test_brightness_levels = {50, 100},
-        test_colors = {{red=255, green=0, blue=0, name="red"}},
+        test_colors = {
+          {red=255, green=0, blue=0, name="red"},
+          {red=0, green=255, blue=0, name="green"},
+          {red=0, green=0, blue=255, name="blue"}
+        },
         test_hsv_colors = {{hue=0, sat=100, val=100, name="red_hsv"}}
       }
     end
