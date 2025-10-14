@@ -6,59 +6,8 @@ local login = require "twinkly.login"
 local socket = require "socket"
 local config = require "twinkly.config"
 
--- Custom capability definition for Twinkly Effects
-local effects_capability_definition = {
-  id = "sebastianthulin44463.twinklyEffects",
-  version = 1,
-  commands = {
-    listEffects = {
-      name = "listEffects",
-      arguments = {}
-    },
-    setEffect = {
-      name = "setEffect", 
-      arguments = {
-        {
-          name = "effectId",
-          optional = false,
-          type = "STRING"
-        }
-      }
-    }
-  },
-  attributes = {
-    availableEffects = {
-      schema = {
-        type = "object",
-        properties = {
-          effects = {
-            type = "array",
-            items = {
-              type = "object",
-              properties = {
-                id = { type = "string" },
-                name = { type = "string" },
-                type = { type = "string" }
-              }
-            }
-          }
-        }
-      }
-    },
-    currentEffect = {
-      schema = {
-        type = "object",
-        properties = {
-          id = { type = "string" },
-          name = { type = "string" }
-        }
-      }
-    }
-  }
-}
-
--- Register the custom capability
-local effects_cap = caps.build_cap_from_json_string(json.encode(effects_capability_definition))
+-- Use built-in Twinkly Effects capability reference
+local effects_cap = caps["voicetiger23642.twinklyEffects"]
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -71,8 +20,6 @@ if not ok then
 end
 
 local schedule_poll
-
-
 
 -----------------------------------------------------------
 -- Resolve IP helper

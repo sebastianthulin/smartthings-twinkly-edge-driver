@@ -11,7 +11,7 @@ components:
         version: 1
       - id: refresh
         version: 1
-      - id: sebastianthulin44463.twinklyEffects
+      - id: voicetiger23642.twinklyEffects
         version: 1
     categories:
       - name: Light
@@ -39,6 +39,6 @@ preferences:
       default: 5
 
 metadata:
-  vid: SmartThings-smartthings-RGBW_Bulb
-  mnmn: SmartThings
+  vid: 650b3b86-7cef-4bc3-baca-ec42cc0d6e00
+  mnmn: voicetiger23642
   defaultComponentId: main
