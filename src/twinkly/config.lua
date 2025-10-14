@@ -18,7 +18,7 @@ config.api = {
     mode = "/xled/v1/led/mode", 
     brightness = "/xled/v1/led/out/brightness",
     color = "/xled/v1/led/color",
-    -- Movies management (available since firmware 2.5.6)
+    -- Movies management
     movies = "/xled/v1/movies",                    -- Get list of movies
     movies_current = "/xled/v1/led/movies/current", -- Get/set current movie
     -- Effects management  

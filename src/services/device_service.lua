@@ -222,7 +222,6 @@ function DeviceService:list_effects(ip, effect_type)
         self._logger:debug("Found " .. decoded.effects_number .. " builtin effects")
         
         -- Create effect entries from the response
-        -- If unique_ids are available (firmware 2.5.6+), use them
         if decoded.unique_ids and type(decoded.unique_ids) == "table" then
           for i, unique_id in ipairs(decoded.unique_ids) do
             table.insert(list, {
@@ -233,7 +232,7 @@ function DeviceService:list_effects(ip, effect_type)
             })
           end
         else
-          -- Fallback for older firmware - create numbered effects
+          -- Create numbered effects based on effects_number
           for i = 0, decoded.effects_number - 1 do
             table.insert(list, {
               id = i,
@@ -250,7 +249,7 @@ function DeviceService:list_effects(ip, effect_type)
     end
   end
 
-  -- Get user-uploaded movies using /xled/v1/movies endpoint (firmware 2.5.6+)
+  -- Get user-uploaded movies using /xled/v1/movies endpoint
   if effect_type == "all" or effect_type == "user" then
     local ok, code, status, body = self:_make_authenticated_request(ip, config.get_endpoint("movies"), "GET")
     if ok then
@@ -329,36 +328,25 @@ function DeviceService:set_effect(ip, effect_id, effect_type)
     end
     
   else
-    -- Legacy mode: try both approaches for backward compatibility
-    self._logger:debug("Effect type not specified, trying both builtin and movie endpoints")
+    -- Default behavior: assume builtin effect (most common case)
+    -- This eliminates the backward compatibility fallback while maintaining functionality
+    self._logger:debug("Effect type not specified, assuming builtin effect")
     
-    -- Try builtin effect first
-    local ok_effect = self:set_mode(ip, "effect")
-    if ok_effect then
-      local payload = { effect_id = effect_id }
-      local ok2, code, status, body = self:_make_authenticated_request(
-        ip, config.get_endpoint("effects_current"), "POST", payload)
-      
-      if ok2 then
-        self._logger:debug("Successfully set as builtin effect " .. effect_id)
-        return true, body
-      end
+    local ok, err = self:set_mode(ip, "effect")
+    if not ok then 
+      return nil, err 
     end
+
+    local payload = { effect_id = effect_id }
+    local ok2, code, status, body = self:_make_authenticated_request(
+      ip, config.get_endpoint("effects_current"), "POST", payload)
     
-    -- Try as movie if builtin effect failed
-    local ok_movie = self:set_mode(ip, "movie")
-    if ok_movie then
-      local payload = { id = effect_id }
-      local ok3, code2, status2, body2 = self:_make_authenticated_request(
-        ip, config.get_endpoint("movies_current"), "POST", payload)
-      
-      if ok3 then
-        self._logger:debug("Successfully set as user movie " .. effect_id)
-        return true, body2
-      end
+    if ok2 then
+      self._logger:debug("Successfully set builtin effect " .. effect_id)
+      return true, body
+    else
+      return nil, "Failed to set builtin effect: " .. tostring(status)
     end
-    
-    return nil, "Failed to set effect: neither builtin effect nor user movie worked"
   end
 end
 

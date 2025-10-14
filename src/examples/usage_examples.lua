@@ -19,8 +19,8 @@ local class = require "vendor.30log"
 print("=== Twinkly Driver Architecture Examples ===")
 print()
 
--- Example 1: Basic usage (backward compatible)
-print("1. Basic Usage (Backward Compatible):")
+-- Example 1: Basic usage
+print("1. Basic Usage:")
 local twinkly = require "twinkly"
 print("   Available functions:", table.concat({"set_mode", "get_mode", "set_brightness", "set_color_rgb"}, ", "))
 print("   New functions:", "health_check")
@@ -210,7 +210,7 @@ print("   - get_device_info()")
 print()
 
 print("=== Architecture Benefits Demonstrated ===")
-print("✓ Backward compatibility maintained")
+print("✓ Clean, efficient API interface")
 print("✓ Easy service extension and customization")
 print("✓ Dependency injection enables testing")  
 print("✓ Clear separation of concerns")

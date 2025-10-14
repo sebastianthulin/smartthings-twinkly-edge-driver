@@ -1,12 +1,12 @@
--- Twinkly API Module - Backward compatible facade using new SOLID architecture
--- This provides the same interface as before but uses dependency injection internally
+-- Twinkly API Module - Clean facade using SOLID architecture
+-- This provides a simple interface using dependency injection internally
 
 local ServiceFactory = require "service_factory"
 
 -- Create the controller instance using dependency injection
 local controller = ServiceFactory.create_twinkly_controller()
 
--- Export the same interface as before for backward compatibility
+-- Export the main API interface
 local twinkly = {}
 
 -- Login / token handling
