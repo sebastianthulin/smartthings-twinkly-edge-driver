@@ -7,6 +7,81 @@ local json = require "dkjson"
 local socket = require "socket" -- for short sleep between reauth retries
 local config = require "twinkly.config"
 
+-- Helper function to format raw response logging
+local function log_raw_response(logger, url, method, request_headers, request_body, response)
+  -- Check if raw responses are enabled
+  local test_utils_ok, test_utils = pcall(require, "test-utils")
+  local test_config = test_utils_ok and test_utils.load_config() or {}
+  
+  if not test_config.rawResponses then
+    return -- Raw responses disabled
+  end
+  
+  print("\n" .. string.rep("=", 80))
+  print("🌐 RAW API REQUEST/RESPONSE")
+  print(string.rep("=", 80))
+  
+  -- Request information
+  print("📤 REQUEST:")
+  print("   Method: " .. tostring(method))
+  print("   URL: " .. tostring(url))
+  
+  -- Request headers
+  if request_headers then
+    print("   Headers:")
+    for k, v in pairs(request_headers) do
+      -- Hide sensitive tokens
+      local display_value = k:lower():match("token") and "***HIDDEN***" or v
+      print("     " .. k .. ": " .. tostring(display_value))
+    end
+  end
+  
+  -- Request body
+  if request_body then
+    print("   Body:")
+    -- Try to format JSON if it's valid JSON
+    local formatted_body = request_body
+    if request_body:match("^%s*{") then
+      local parsed = json.decode(request_body)
+      if parsed then
+        formatted_body = json.encode(parsed, {indent = true})
+      end
+    end
+    print("     " .. formatted_body:gsub("\n", "\n     "))
+  else
+    print("   Body: (none)")
+  end
+  
+  print("\n📥 RESPONSE:")
+  print("   Status: " .. tostring(response.status_code) .. " " .. tostring(response.status_line or ""))
+  
+  -- Response headers
+  if response.headers then
+    print("   Headers:")
+    for k, v in pairs(response.headers) do
+      print("     " .. k .. ": " .. tostring(v))
+    end
+  end
+  
+  -- Response body
+  print("   Body:")
+  if response.body and response.body ~= "" then
+    -- Try to format JSON if it's valid JSON
+    local formatted_body = response.body
+    if response.body:match("^%s*{") then
+      local parsed = json.decode(response.body)
+      if parsed then
+        formatted_body = json.encode(parsed, {indent = true})
+      end
+    end
+    print("     " .. formatted_body:gsub("\n", "\n     "))
+  else
+    print("     (empty)")
+  end
+  
+  print(string.rep("=", 80) .. "\n")
+end
+
 local DeviceService = interfaces.IDeviceService:extend("DeviceService")
 
 function DeviceService:init(http_client, auth_service, color_converter, logger)
@@ -33,13 +108,17 @@ function DeviceService:_make_authenticated_request(ip, endpoint, method, payload
     headers["Content-Length"] = tostring(#body)
   end
 
+  local full_url = "http://" .. ip .. endpoint
   local response = self._http_client:request({
-    url = "http://" .. ip .. endpoint,
+    url = full_url,
     method = method,
     headers = headers,
     body = body
   })
 
+  -- Log raw response if enabled
+  log_raw_response(self._logger, full_url, method, headers, body, response)
+  
   self._logger:debug(string.format("[DeviceService %s %s] code=%s body=%s", 
     method, endpoint, tostring(response.status_code), tostring(response.body)))
 
