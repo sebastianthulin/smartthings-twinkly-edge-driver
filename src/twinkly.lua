@@ -49,6 +49,23 @@ twinkly.get_color = function(ip)
   return controller:get_color(ip)
 end
 
+-- Scenes control (firmware 2.9.1+)
+twinkly.list_scenes = function(category)
+  return controller:list_scenes(category)
+end
+
+twinkly.activate_scene = function(ip, scene_id)
+  return controller:activate_scene(ip, scene_id)
+end
+
+twinkly.get_current_scene = function(ip)
+  return controller:get_current_scene(ip)
+end
+
+twinkly.get_scene_categories = function()
+  return controller:get_scene_categories()
+end
+
 -- Status / mode query
 twinkly.get_mode = function(ip)
   return controller:get_mode(ip)

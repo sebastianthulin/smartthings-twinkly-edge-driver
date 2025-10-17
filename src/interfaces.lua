@@ -65,6 +65,49 @@ interfaces.IDeviceService = class("IDeviceService", {
   get_color = function(self, ip)
     error("IDeviceService:get_color() must be implemented by concrete class")
   end,
+  list_effects = function(self, ip, effect_type)
+    error("IDeviceService:list_effects() must be implemented by concrete class")
+  end,
+  set_effect = function(self, ip, effect_id, effect_type)
+    error("IDeviceService:set_effect() must be implemented by concrete class")
+  end,
+  get_effect = function(self, ip)
+    error("IDeviceService:get_effect() must be implemented by concrete class")
+  end
+})
+
+-- ISceneService interface - for scene management (firmware 2.9.1+)
+interfaces.ISceneService = class("ISceneService", {
+  list_scenes = function(self, category)
+    error("ISceneService:list_scenes() must be implemented by concrete class")
+  end,
+  get_categories = function(self)
+    error("ISceneService:get_categories() must be implemented by concrete class")
+  end,
+  activate_scene = function(self, ip, scene_id)
+    error("ISceneService:activate_scene() must be implemented by concrete class")
+  end,
+  get_current_scene = function(self, ip)
+    error("ISceneService:get_current_scene() must be implemented by concrete class")
+  end
+})
+    error("IDeviceService:get_mode() must be implemented by concrete class")
+  end,
+  set_brightness = function(self, ip, level)
+    error("IDeviceService:set_brightness() must be implemented by concrete class")
+  end,
+  get_brightness = function(self, ip)
+    error("IDeviceService:get_brightness() must be implemented by concrete class")
+  end,
+  set_color_rgb = function(self, ip, red, green, blue)
+    error("IDeviceService:set_color_rgb() must be implemented by concrete class")
+  end,
+  set_color_hsv = function(self, ip, hue, saturation, value)
+    error("IDeviceService:set_color_hsv() must be implemented by concrete class")
+  end,
+  get_color = function(self, ip)
+    error("IDeviceService:get_color() must be implemented by concrete class")
+  end,
   list_effects = function(self, ip, type)
     error("IDeviceService:list_effects() must be implemented by concrete class")
   end,
