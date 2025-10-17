@@ -17,6 +17,118 @@ local function log_raw_response(logger, url, method, request_headers, request_bo
     return -- Raw responses disabled
   end
   
+  local timestamp = os.date("%Y-%m-%d_%H-%M-%S")
+  local log_data = {
+    timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+    request = {
+      method = method,
+      url = url,
+      headers = {},
+      body = request_body
+    },
+    response = {
+      status_code = response.status_code,
+      status_line = response.status_line,
+      headers = response.headers or {},
+      body = response.body
+    }
+  }
+  
+  -- Copy headers but hide sensitive tokens for file logging
+  if request_headers then
+    for k, v in pairs(request_headers) do
+      log_data.request.headers[k] = k:lower():match("token") and "***HIDDEN***" or v
+    end
+  end
+  
+  -- Create logs directory if it doesn't exist
+  local logs_dir = "test-logs"
+  os.execute("mkdir -p " .. logs_dir)
+  
+  -- Generate unique log filename
+  local endpoint_name = url:match("/([^/]+)$") or "unknown"
+  local log_filename = string.format("%s/api_%s_%s_%s.log", 
+    logs_dir, method:lower(), endpoint_name, timestamp)
+  
+  -- Write detailed log to file
+  local log_file = io.open(log_filename, "w")
+  if log_file then
+    log_file:write("================================================================================\n")
+    log_file:write("🌐 RAW API REQUEST/RESPONSE LOG\n")
+    log_file:write("================================================================================\n")
+    log_file:write("Timestamp: " .. log_data.timestamp .. "\n\n")
+    
+    -- Request section
+    log_file:write("📤 REQUEST:\n")
+    log_file:write("   Method: " .. tostring(log_data.request.method) .. "\n")
+    log_file:write("   URL: " .. tostring(log_data.request.url) .. "\n")
+    
+    -- Request headers
+    log_file:write("   Headers:\n")
+    for k, v in pairs(log_data.request.headers) do
+      log_file:write("     " .. k .. ": " .. tostring(v) .. "\n")
+    end
+    
+    -- Request body
+    if log_data.request.body then
+      log_file:write("   Body:\n")
+      -- Try to format JSON if it's valid JSON
+      local formatted_body = log_data.request.body
+      if log_data.request.body:match("^%s*{") then
+        local parsed = json.decode(log_data.request.body)
+        if parsed then
+          formatted_body = json.encode(parsed, {indent = true})
+        end
+      end
+      log_file:write("     " .. formatted_body:gsub("\n", "\n     ") .. "\n")
+    else
+      log_file:write("   Body: (none)\n")
+    end
+    
+    -- Response section
+    log_file:write("\n📥 RESPONSE:\n")
+    log_file:write("   Status: " .. tostring(log_data.response.status_code) .. " " .. tostring(log_data.response.status_line or "") .. "\n")
+    
+    -- Response headers
+    log_file:write("   Headers:\n")
+    for k, v in pairs(log_data.response.headers) do
+      log_file:write("     " .. k .. ": " .. tostring(v) .. "\n")
+    end
+    
+    -- Response body
+    log_file:write("   Body:\n")
+    if log_data.response.body and log_data.response.body ~= "" then
+      -- Try to format JSON if it's valid JSON
+      local formatted_body = log_data.response.body
+      if log_data.response.body:match("^%s*{") then
+        local parsed = json.decode(log_data.response.body)
+        if parsed then
+          formatted_body = json.encode(parsed, {indent = true})
+        end
+      end
+      log_file:write("     " .. formatted_body:gsub("\n", "\n     ") .. "\n")
+    else
+      log_file:write("     (empty)\n")
+    end
+    
+    log_file:write("================================================================================\n")
+    log_file:close()
+    
+    -- Update logs index file
+    local index_file = io.open(logs_dir .. "/index.txt", "a")
+    if index_file then
+      index_file:write(string.format("%s | %s %s | %s\n", 
+        log_data.timestamp, method, endpoint_name, log_filename))
+      index_file:close()
+    end
+    
+    -- Notify about log file creation
+    print("💾 Raw API data logged to: " .. log_filename)
+  else
+    logger:warn("Failed to create log file: " .. log_filename)
+  end
+  
+  -- Also display to console (existing functionality)
   print("\n" .. string.rep("=", 80))
   print("🌐 RAW API REQUEST/RESPONSE")
   print(string.rep("=", 80))
