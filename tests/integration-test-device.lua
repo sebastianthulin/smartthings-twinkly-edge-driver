@@ -148,6 +148,14 @@ test.describe("Can list available effects", function()
   test.assert_not_nil(effects, "Should get effects list")
   test.assert_true(type(effects) == "table", "Effects should be a table")
   
+  print("!!!!!!!!Effects found: " .. #effects)
+  for i, effect in ipairs(effects) do
+    print("  Effect " .. i .. ": id=" .. tostring(effect.id) .. ", name=" .. tostring(effect.name) .. ", type=" .. tostring(effect.type))
+    if effect.unique_id then
+      print("    unique_id=" .. tostring(effect.unique_id))
+    end
+  end
+  
   -- Some devices may not have any pre-installed effects, which is acceptable
   if #effects > 0 then
     -- Check effect structure if effects are available
