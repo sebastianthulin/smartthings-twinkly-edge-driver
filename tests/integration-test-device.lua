@@ -147,15 +147,7 @@ test.describe("Can list available effects", function()
   local effects = twinkly.list_effects(ip, "all")
   test.assert_not_nil(effects, "Should get effects list")
   test.assert_true(type(effects) == "table", "Effects should be a table")
-  
-  print("!!!!!!!!Effects found: " .. #effects)
-  for i, effect in ipairs(effects) do
-    print("  Effect " .. i .. ": id=" .. tostring(effect.id) .. ", name=" .. tostring(effect.name) .. ", type=" .. tostring(effect.type))
-    if effect.unique_id then
-      print("    unique_id=" .. tostring(effect.unique_id))
-    end
-  end
-  
+
   -- Some devices may not have any pre-installed effects, which is acceptable
   if #effects > 0 then
     -- Check effect structure if effects are available
@@ -231,12 +223,6 @@ test.describe("Can set and verify random effect", function()
   -- Get all available effects
   local effects = twinkly.list_effects(ip, "all")
   test.assert_not_nil(effects, "Should get effects list")
-  
-   -- Print debug info, full object random_effect
-  print("!!!!!!!!EFX List: ")
-  for k, v in pairs(effects) do
-    print("  " .. tostring(k) .. ": " .. tostring(v))
-  end
 
   if #effects > 0 then
     -- Choose a random effect from the list
@@ -257,23 +243,9 @@ test.describe("Can set and verify random effect", function()
     local expected_mode = (random_effect.type == "builtin") and "effect" or "movie"
     test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after setting " .. random_effect.type .. " effect")
     
-    -- Print debug info, full object random_effect
-    print("!!!!!!!!Random effect details: ")
-    for k, v in pairs(random_effect) do
-      print("  " .. tostring(k) .. ": " .. tostring(v))
-    end
-
-    -- Print debug info, current mode
-    print("!!!!!!!!Current device mode: " .. tostring(mode))
-
     -- Try to verify the current effect (if supported)
     local current_effect = twinkly.get_effect(ip)
     if current_effect then
-      print("!!!!!!!!Current effect details: ")
-      for k, v in pairs(current_effect) do
-        print("  " .. tostring(k) .. ": " .. tostring(v))
-      end
-      
       test.assert_equals(current_effect.id, random_effect.id, "Current effect ID should match the set effect ID")
       print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
     else
