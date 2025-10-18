@@ -12,6 +12,7 @@ function TwinklyController:init(service_container)
   self._device_service = service_container:resolve("device_service")
   self._auth_service = service_container:resolve("auth_service")
   self._scenes_service = service_container:resolve("scenes_service")
+  self._color_converter = service_container:resolve("color_converter")
   self._logger = service_container:resolve("logger")
 end
 
@@ -59,6 +60,10 @@ function TwinklyController:get_color(ip)
   return self._device_service:get_color(ip)
 end
 
+function TwinklyController:rgb_to_hsv(r, g, b)
+  return self._color_converter:rgb_to_hsv(r, g, b)
+end
+
 -- Effects control
 function TwinklyController:list_effects(ip, type)
   return self._device_service:list_effects(ip, type)
@@ -87,6 +92,10 @@ end
 
 function TwinklyController:get_scene_categories()
   return self._scenes_service:get_categories()
+end
+
+function TwinklyController:get_scene_by_id(scene_id)
+  return self._scenes_service:get_scene_by_id(scene_id)
 end
 
 -- Service container access for advanced usage

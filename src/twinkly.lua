@@ -49,6 +49,10 @@ twinkly.get_color = function(ip)
   return controller:get_color(ip)
 end
 
+twinkly.rgb_to_hsv = function(r, g, b)
+  return controller:rgb_to_hsv(r, g, b)
+end
+
 -- Scenes control (firmware 2.9.1+)
 twinkly.list_scenes = function(category)
   return controller:list_scenes(category)
@@ -64,6 +68,10 @@ end
 
 twinkly.get_scene_categories = function()
   return controller:get_scene_categories()
+end
+
+twinkly.get_scene_by_id = function(scene_id)
+  return controller:get_scene_by_id(scene_id)
 end
 
 -- Status / mode query

@@ -2,39 +2,11 @@ local Driver = require "st.driver"
 local caps = require "st.capabilities"
 local json = require "dkjson"
 local twinkly = require "twinkly"
-local login = require "twinkly.login"
+
 local socket = require "socket"
 local config = require "twinkly.config"
 
--- Helper function to convert RGB to HSV
-local function rgb_to_hsv(r, g, b)
-  r, g, b = r/255, g/255, b/255
-  local max, min = math.max(r, g, b), math.min(r, g, b)
-  local h, s, v
-  v = max
 
-  local d = max - min
-  if max == 0 then
-    s = 0
-  else
-    s = d / max
-  end
-
-  if max == min then
-    h = 0 -- achromatic
-  else
-    if max == r then
-      h = (g - b) / d + (g < b and 6 or 0)
-    elseif max == g then
-      h = (b - r) / d + 2
-    elseif max == b then
-      h = (r - g) / d + 4
-    end
-    h = h / 6
-  end
-
-  return math.floor(h * 360), math.floor(s * 100)
-end
 
 -- Use built-in Twinkly Effects and Scenes capability references
 local effects_cap = caps["voicetiger23642.twinklyEffects"]
@@ -155,8 +127,7 @@ local function handle_refresh(driver, device, command)
   log.info("REFRESH -> " .. tostring(ip or "?"))
   if not ip then return end
 
-  -- Always ensure we have a valid token before manual refresh
-  local token, err = login.ensure_token(ip)
+  local token, err = twinkly.ensure_token(ip)
   if not token then
     log.warn(string.format("[refresh] Could not login for %s: %s", ip, tostring(err)))
     return
@@ -178,7 +149,7 @@ local function handle_refresh(driver, device, command)
   if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
     local ok_b, brightness = pcall(twinkly.get_brightness, ip)
     if ok_b and brightness then
-      local level = math.floor((brightness / 255) * 100)
+      local level = brightness
       device:emit_event(caps.switchLevel.level(level))
     end
 
@@ -328,10 +299,7 @@ local function activate_scene(driver, device, command)
         local scene_details = nil
         
         -- Get scene details for UI display
-        local scenes_service = twinkly._controller._scenes_service
-        if scenes_service then
-          scene_details = scenes_service:get_scene_by_id(scene_id)
-        end
+        local scene_details = twinkly.get_scene_by_id(scene_id)
         
         if scene_details then
           device:emit_event(scenes_cap.currentScene({
@@ -344,7 +312,7 @@ local function activate_scene(driver, device, command)
           device:emit_event(caps.switchLevel.level(scene_details.brightness))
           if scene_details.color then
             -- Convert RGB to HSV for color control
-            local hue, sat = rgb_to_hsv(scene_details.color.red, scene_details.color.green, scene_details.color.blue)
+            local hue, sat = twinkly.rgb_to_hsv(scene_details.color.red, scene_details.color.green, scene_details.color.blue)
             device:emit_event(caps.colorControl.hue(hue))
             device:emit_event(caps.colorControl.saturation(sat))
           end
@@ -395,11 +363,12 @@ end
 local function set_effect(driver, device, command)
   local ip = resolve_ip(device)
   local effect_id = command.args.effectId
-  log.info(string.format("SET_EFFECT -> %s effect=%s", tostring(ip or "?"), tostring(effect_id)))
+  local effect_type = command.args.effectType
+  log.info(string.format("SET_EFFECT -> %s effect=%s type=%s", tostring(ip or "?"), tostring(effect_id), tostring(effect_type or "nil")))
   
   if ip and effect_id then
     suspend_polling_during_operation(driver, device, function()
-      local ok, result = pcall(twinkly.set_effect, ip, effect_id)
+      local ok, result = pcall(twinkly.set_effect, ip, effect_id, effect_type)
       if ok then
         log.info("Effect set successfully: " .. tostring(result))
         device:emit_event(caps.switch.switch.on())
@@ -429,7 +398,7 @@ local function poll_state(driver, device)
   log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
 
   -- Ensure valid token before poll
-  local token, err = login.ensure_token(ip)
+  local token, err = twinkly.ensure_token(ip)
   if not token then
     log.warn(string.format("[poll] Could not ensure token for %s: %s", ip, tostring(err)))
     return
@@ -440,8 +409,8 @@ local function poll_state(driver, device)
   if not ok or not mode_data then
     log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_data)))
     if socket and socket.sleep then socket.sleep(config.timing.poll_failure_delay) end
-    login.clear_token(ip)
-    local retry_token = login.ensure_token(ip)
+    twinkly.clear_token(ip)
+    local retry_token = twinkly.ensure_token(ip)
     if retry_token then
       ok, mode_data = pcall(twinkly.get_mode, ip)
     else
@@ -546,23 +515,27 @@ end
 -----------------------------------------------------------
 -- LIFECYCLE HANDLERS
 -----------------------------------------------------------
-local function device_init(driver, device)
+local function initialize_capabilities(device)
   device:emit_event(caps.switch.switch.off())
 
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
+  if device.profile.name and device.profile.name:match("twinkly-color-light") then
     device:emit_event(caps.switchLevel.level(100))
     device:emit_event(caps.colorControl.hue(0))
     device:emit_event(caps.colorControl.saturation(100))
   end
 
   -- Initialize scene capabilities if available
-  if device.profile.name and (device.profile.name:match("twinkly%-color%-light") or device.profile.name:match("twinkly%-scenes%-light")) then
+  if device.profile.name and (device.profile.name:match("twinkly-color-light") or device.profile.name:match("twinkly-scenes-light")) then
     -- Load available scene categories
     local categories = twinkly.get_scene_categories()
     if categories then
       device:emit_event(scenes_cap.sceneCategories(categories))
     end
   end
+end
+
+local function device_init(driver, device)
+  initialize_capabilities(device)
 
   local existing = device:get_field("poll_timer")
   if existing then
@@ -577,22 +550,7 @@ end
 
 local function device_added(driver, device)
   log.info("Device added: " .. (device.device_network_id or "unknown"))
-  device:emit_event(caps.switch.switch.off())
-
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
-
-  -- Initialize scene capabilities if available
-  if device.profile.name and (device.profile.name:match("twinkly%-color%-light") or device.profile.name:match("twinkly%-scenes%-light")) then
-    -- Load available scene categories
-    local categories = twinkly.get_scene_categories()
-    if categories then
-      device:emit_event(scenes_cap.sceneCategories(categories))
-    end
-  end
+  initialize_capabilities(device)
 
   if not device:get_field("ipAddress") then
     device:set_field("ipAddress", "", { persist = true })
