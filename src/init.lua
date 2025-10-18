@@ -155,25 +155,9 @@ local function handle_refresh(driver, device, command)
 
     local ok_c, color = pcall(twinkly.get_color, ip)
     if ok_c and color and color.red then
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max, min = math.max(r, g, b), math.min(r, g, b)
-      local delta = max - min
-      local h, s, v = 0, 0, max
-
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
-      end
-
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
+      local hue, saturation = twinkly.rgb_to_hsv(color.red, color.green, color.blue)
+      device:emit_event(caps.colorControl.hue(math.floor((hue / 360) * 100)))
+      device:emit_event(caps.colorControl.saturation(math.floor(saturation * 100)))
     end
   end
 end
@@ -458,23 +442,9 @@ local function poll_state(driver, device)
 
       local ok_c, color = pcall(twinkly.get_color, ip)
       if ok_c and color and color.red then
-        local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-        local max, min = math.max(r, g, b), math.min(r, g, b)
-        local delta = max - min
-        local h, s, v = 0, 0, max
-        if delta > 0 then
-          s = delta / max
-          if max == r then
-            h = ((g - b) / delta) % 6
-          elseif max == g then
-            h = (b - r) / delta + 2
-          else
-            h = (r - g) / delta + 4
-          end
-          h = h * 60
-        end
-        new_hue = math.floor((h / 360) * 100)
-        new_sat = math.floor(s * 100)
+        local hue, saturation = twinkly.rgb_to_hsv(color.red, color.green, color.blue)
+        new_hue = math.floor((hue / 360) * 100)
+        new_sat = math.floor(saturation * 100)
       end
     end
 

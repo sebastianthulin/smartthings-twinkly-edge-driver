@@ -3,11 +3,9 @@
 
 local class = require "vendor.30log"
 local interfaces = require "interfaces"
+local config = require "twinkly.config"
 
 local ColorConverter = interfaces.IColorConverter:extend("ColorConverter")
-
--- Adjustable saturation curve factor (higher = more saturation retained)
-local SATURATION_SCALE = 1.8
 
 function ColorConverter:init()
   -- No special initialization needed
@@ -21,7 +19,7 @@ function ColorConverter:hsv_to_rgb(hue, saturation, value)
   value = math.max(0, math.min(1, value or 1))
   
   -- Apply saturation scaling for better color appearance
-  saturation = math.pow(saturation, 1 / SATURATION_SCALE)
+  saturation = math.pow(saturation, 1 / config.color.saturation_scale)
   
   local c = value * saturation
   local x = c * (1 - math.abs((hue / 60) % 2 - 1))
@@ -43,10 +41,9 @@ function ColorConverter:hsv_to_rgb(hue, saturation, value)
   end
   
   -- Apply gamma correction for better visual accuracy
-  local gamma = 2.2
-  r = math.pow(r + m, 1 / gamma)
-  g = math.pow(g + m, 1 / gamma)
-  b = math.pow(b + m, 1 / gamma)
+  r = math.pow(r + m, 1 / config.color.gamma)
+  g = math.pow(g + m, 1 / config.color.gamma)
+  b = math.pow(b + m, 1 / config.color.gamma)
   
   -- Convert to 0-255 range and round
   return math.floor(r * 255 + 0.5), 

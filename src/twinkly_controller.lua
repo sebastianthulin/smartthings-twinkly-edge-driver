@@ -69,8 +69,8 @@ function TwinklyController:list_effects(ip, type)
   return self._device_service:list_effects(ip, type)
 end
 
-function TwinklyController:set_effect(ip, effect_id)
-  return self._device_service:set_effect(ip, effect_id)
+function TwinklyController:set_effect(ip, effect_id, effect_type)
+  return self._device_service:set_effect(ip, effect_id, effect_type)
 end
 
 function TwinklyController:get_effect(ip)
