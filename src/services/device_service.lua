@@ -500,34 +500,6 @@ function DeviceService:set_effect(ip, effect_id, effect_type)
     return nil, "Unknown effect type: " .. tostring(effect_type)
   end
 end
-      self._logger:debug("Successfully set user movie " .. effect_id)
-      return true, body
-    else
-      return nil, "Failed to set user movie: " .. tostring(status)
-    end
-    
-  else
-    -- Default behavior: assume builtin effect (most common case)
-    -- This eliminates the backward compatibility fallback while maintaining functionality
-    self._logger:debug("Effect type not specified, assuming builtin effect")
-    
-    local ok, err = self:set_mode(ip, "effect")
-    if not ok then 
-      return nil, err 
-    end
-
-    local payload = { effect_id = effect_id }
-    local ok2, code, status, body = self:_make_authenticated_request(
-      ip, config.get_endpoint("effects_current"), "POST", payload)
-    
-    if ok2 then
-      self._logger:debug("Successfully set builtin effect " .. effect_id)
-      return true, body
-    else
-      return nil, "Failed to set builtin effect: " .. tostring(status)
-    end
-  end
-end
 
 -- Get current effect information - firmware 2.9.1+ only
 function DeviceService:get_effect(ip)

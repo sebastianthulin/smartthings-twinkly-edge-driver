@@ -91,30 +91,6 @@ interfaces.ISceneService = class("ISceneService", {
     error("ISceneService:get_current_scene() must be implemented by concrete class")
   end
 })
-    error("IDeviceService:get_mode() must be implemented by concrete class")
-  end,
-  set_brightness = function(self, ip, level)
-    error("IDeviceService:set_brightness() must be implemented by concrete class")
-  end,
-  get_brightness = function(self, ip)
-    error("IDeviceService:get_brightness() must be implemented by concrete class")
-  end,
-  set_color_rgb = function(self, ip, red, green, blue)
-    error("IDeviceService:set_color_rgb() must be implemented by concrete class")
-  end,
-  set_color_hsv = function(self, ip, hue, saturation, value)
-    error("IDeviceService:set_color_hsv() must be implemented by concrete class")
-  end,
-  get_color = function(self, ip)
-    error("IDeviceService:get_color() must be implemented by concrete class")
-  end,
-  list_effects = function(self, ip, type)
-    error("IDeviceService:list_effects() must be implemented by concrete class")
-  end,
-  set_effect = function(self, ip, effect_id)
-    error("IDeviceService:set_effect() must be implemented by concrete class")
-  end
-})
 
 -- IColorConverter interface - for color conversion utilities
 interfaces.IColorConverter = class("IColorConverter", {
