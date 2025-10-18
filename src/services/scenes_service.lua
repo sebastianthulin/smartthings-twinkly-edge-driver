@@ -236,4 +236,14 @@ function ScenesService:get_current_scene(ip)
   return nil, "Current effect does not match any predefined scene"
 end
 
+-- Get scene by ID
+function ScenesService:get_scene_by_id(scene_id)
+  for _, scene in ipairs(self._predefined_scenes) do
+    if scene.id == scene_id then
+      return scene
+    end
+  end
+  return nil
+end
+
 return ScenesService

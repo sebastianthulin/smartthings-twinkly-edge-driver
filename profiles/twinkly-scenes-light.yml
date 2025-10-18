@@ -1,4 +1,4 @@
-name: twinkly-color-light
+name: twinkly-scenes-light
 components:
   - id: main
     capabilities:
@@ -10,8 +10,6 @@ components:
       - id: colorControl
         version: 1
       - id: refresh
-        version: 1
-      - id: voicetiger23642.twinklyEffects
         version: 1
       - id: voicetiger23642.twinklyScenes
         version: 1
