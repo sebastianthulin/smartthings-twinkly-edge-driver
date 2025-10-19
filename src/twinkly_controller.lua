@@ -73,9 +73,7 @@ function TwinklyController:set_effect(ip, effect_id, effect_type)
   return self._device_service:set_effect(ip, effect_id, effect_type)
 end
 
-function TwinklyController:get_effect(ip)
-  return self._device_service:get_effect(ip)
-end
+
 
 -- Scenes control (firmware 2.9.1+)
 function TwinklyController:list_scenes(category)

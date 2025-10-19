@@ -74,9 +74,6 @@ function DeviceService:set_effect(ip, effect_id, effect_type)
   return self._effect_manager:set_effect(ip, effect_id, effect_type)
 end
 
--- Get current effect information - firmware 2.9.1+ only
-function DeviceService:get_effect(ip)
-  return self._effect_manager:get_effect(ip)
-end
+
 
 return DeviceService

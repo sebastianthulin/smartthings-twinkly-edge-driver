@@ -194,30 +194,7 @@ test.describe("Can activate effects", function()
   end
 end)
 
-test.describe("Can get current effect information", function()
-  -- First activate an effect
-  local effects = twinkly.list_effects(ip, "all")
-  test.assert_not_nil(effects, "Should get effects list")
-  
-  if #effects > 0 then
-    local test_effect = effects[1]
-    twinkly.set_effect(ip, test_effect.id, test_effect.type)
-    socket.sleep(1)
-    
-    -- Try to get current effect
-    local current_effect = twinkly.get_effect(ip)
-    -- Note: This may return nil on some firmware versions, so we test gracefully
-    if current_effect then
-      test.assert_not_nil(current_effect.id, "Current effect should have an ID")
-      test.assert_not_nil(current_effect.name, "Current effect should have a name")
-    else
-      -- Some devices may not support getting current effect
-      print("Note: Device does not support getting current effect (acceptable)")
-    end
-  else
-    print("Note: Skipping current effect test - no effects available on device")
-  end
-end)
+
 
 test.describe("Can set and verify random effect", function()
   -- Get all available scenes
@@ -242,14 +219,7 @@ test.describe("Can set and verify random effect", function()
     local mode = twinkly.get_mode(ip)
     test.assert_equals(mode, "effect", "Device should be in effect mode after setting effect")
     
-    -- Try to verify the current effect (if supported)
-    local current_effect = twinkly.get_effect(ip)
-    if current_effect then
-      test.assert_equals(current_effect.id, random_scene.effect_id, "Current effect ID should match the set effect ID")
-      print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
-    else
-      print("Note: Device does not support getting current effect - cannot verify effect ID match")
-    end
+
   else
     print("Note: Skipping random effect test - no scenes available")
   end

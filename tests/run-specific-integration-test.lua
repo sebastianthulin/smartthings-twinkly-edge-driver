@@ -45,8 +45,7 @@ end
 -- Get the test name from command line argument
 local test_name = arg and arg[1]
 if not test_name then
-  print("Usage: lua run-specific-integration-test.lua <test_name>")
-  print("Available tests: get_mode, switch, brightness, rgb_color, hsv_color, list_effects, list_builtin_effects, list_user_effects, activate_effects, get_current_effect, random_effect, effects_mode_switching")
+print("Available tests: get_mode, switch, brightness, rgb_color, hsv_color, list_effects, list_builtin_effects, list_user_effects, activate_effects, random_effect, effects_mode_switching")
   os.exit(1)
 end
 
@@ -184,28 +183,7 @@ tests["activate_effects"] = function()
   end)
 end
 
-tests["get_current_effect"] = function()
-  test.describe("Can get current effect information", function()
-    local effects = twinkly.list_effects(ip, "all")
-    test.assert_not_nil(effects, "Should get effects list")
-    
-    if #effects > 0 then
-      local test_effect = effects[1]
-      twinkly.set_effect(ip, test_effect.id, test_effect.type)
-      socket.sleep(1)
-      
-      local current_effect = twinkly.get_effect(ip)
-      if current_effect then
-        test.assert_not_nil(current_effect.id, "Current effect should have an ID")
-        test.assert_not_nil(current_effect.name, "Current effect should have a name")
-      else
-        print("Note: Device does not support getting current effect (acceptable)")
-      end
-    else
-      print("Note: Skipping current effect test - no effects available on device")
-    end
-  end)
-end
+
 
 tests["random_effect"] = function()
   test.describe("Can set and verify random effect", function()
@@ -228,13 +206,7 @@ tests["random_effect"] = function()
       local expected_mode = (random_effect.type == "static" or random_effect.type == "builtin") and "effect" or "movie"
       test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after setting " .. random_effect.type .. " effect")
       
-      local current_effect = twinkly.get_effect(ip)
-      if current_effect then
-        test.assert_equals(current_effect.id, random_effect.id, "Current effect ID should match the set effect ID")
-        print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
-      else
-        print("Note: Device does not support getting current effect - cannot verify effect ID match")
-      end
+
     else
       print("Note: Skipping random effect test - no effects available on device")
     end
@@ -287,6 +259,6 @@ if tests[test_name] then
   print("✓ Integration test '" .. test_name .. "' passed!")
 else
   print("Error: Unknown test name '" .. test_name .. "'")
-  print("Available tests: get_mode, switch, brightness, rgb_color, hsv_color, list_effects, list_builtin_effects, list_user_effects, activate_effects, get_current_effect, random_effect, effects_mode_switching")
+  print("Available tests: get_mode, switch, brightness, rgb_color, hsv_color, list_effects, list_builtin_effects, list_user_effects, activate_effects, random_effect, effects_mode_switching")
   os.exit(1)
 end
