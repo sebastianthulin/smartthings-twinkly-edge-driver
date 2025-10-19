@@ -10,7 +10,6 @@ local VerificationFeature = require "features.authentication.verification"
 local AuthenticationService = interfaces.IAuthenticationService:extend("AuthenticationService")
 
 function AuthenticationService:init(http_client, logger, utils)
-  self._logger = logger
   self._login_feature = LoginFeature:new(http_client, logger, utils)
   self._token_manager = TokenManager:new(http_client, logger)
   self._verification_feature = VerificationFeature:new(http_client, logger)

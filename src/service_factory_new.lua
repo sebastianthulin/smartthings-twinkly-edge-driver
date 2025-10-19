@@ -2,13 +2,13 @@
 -- Sets up all services and their dependencies according to SOLID principles
 -- Uses the new feature-based architecture
 
-local ServiceContainer = require "services.container"
-local Logger = require "services.logger"
-local HttpClient = require "services.http_client"
-local ColorConverter = require "services.color_converter"
-local AuthenticationService = require "services.authentication_service"
-local DeviceService = require "services.device_service"
-local ScenesService = require "services.scenes_service"
+local ServiceContainer = require "infrastructure.container"
+local Logger = require "infrastructure.logger"
+local HttpClient = require "infrastructure.http_client"
+local ColorConverter = require "services.color_converter_new"
+local AuthenticationService = require "services.authentication_service_new"
+local DeviceService = require "services.device_service_new"
+local ScenesService = require "services.scenes_service_new"
 local TwinklyController = require "twinkly_controller"
 
 local ServiceFactory = {}

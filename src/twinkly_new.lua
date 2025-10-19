@@ -2,7 +2,7 @@
 -- This provides a simple interface using dependency injection internally
 -- Uses the new feature-based architecture
 
-local ServiceFactory = require "service_factory"
+local ServiceFactory = require "service_factory_new"
 
 -- Create the controller instance using dependency injection
 local controller = ServiceFactory.create_twinkly_controller()

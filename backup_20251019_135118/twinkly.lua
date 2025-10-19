@@ -1,6 +1,5 @@
 -- Twinkly API Module - Clean facade using SOLID architecture
 -- This provides a simple interface using dependency injection internally
--- Uses the new feature-based architecture
 
 local ServiceFactory = require "service_factory"
 

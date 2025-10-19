@@ -1,6 +1,5 @@
 -- Service Factory for configuring dependency injection
 -- Sets up all services and their dependencies according to SOLID principles
--- Uses the new feature-based architecture
 
 local ServiceContainer = require "services.container"
 local Logger = require "services.logger"
