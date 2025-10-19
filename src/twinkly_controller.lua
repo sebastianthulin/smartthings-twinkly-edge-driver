@@ -98,6 +98,10 @@ function TwinklyController:get_scene_by_id(scene_id)
   return self._scenes_service:get_scene_by_id(scene_id)
 end
 
+function TwinklyController:get_predefined_scenes()
+  return self._scenes_service:get_predefined_scenes()
+end
+
 -- Service container access for advanced usage
 function TwinklyController:get_service_container()
   return self._container

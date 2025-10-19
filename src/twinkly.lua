@@ -74,6 +74,10 @@ twinkly.get_scene_by_id = function(scene_id)
   return controller:get_scene_by_id(scene_id)
 end
 
+twinkly.get_predefined_scenes = function()
+  return controller:get_predefined_scenes()
+end
+
 -- Status / mode query
 twinkly.get_mode = function(ip)
   return controller:get_mode(ip)

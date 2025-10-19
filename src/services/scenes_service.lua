@@ -246,14 +246,9 @@ function ScenesService:get_scene_by_id(scene_id)
   return nil
 end
 
--- Get scene by ID
-function ScenesService:get_scene_by_id(scene_id)
-  for _, scene in ipairs(self._predefined_scenes) do
-    if scene.id == scene_id then
-      return scene
-    end
-  end
-  return nil
+-- Get all predefined scenes
+function ScenesService:get_predefined_scenes()
+  return self._predefined_scenes
 end
 
 return ScenesService

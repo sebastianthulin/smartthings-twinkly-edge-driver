@@ -220,39 +220,38 @@ test.describe("Can get current effect information", function()
 end)
 
 test.describe("Can set and verify random effect", function()
-  -- Get all available effects
-  local effects = twinkly.list_effects(ip, "all")
-  test.assert_not_nil(effects, "Should get effects list")
-
-  if #effects > 0 then
-    -- Choose a random effect from the list
-    math.randomseed(os.time())
-    local random_index = math.random(1, #effects)
-    local random_effect = effects[random_index]
+  -- Get all available scenes
+  local scenes = twinkly.get_predefined_scenes()
+  test.assert_not_nil(scenes, "Should get scenes list")
+  
+  if #scenes > 0 then
+    -- Choose a random scene from the list
+    math.randomseed(math.floor(os.time() + os.clock() * 1000))
+    local random_index = math.random(1, #scenes)
+    local random_scene = scenes[random_index]
     
-    print("Testing random effect: " .. tostring(random_effect.name) .. " (type: " .. tostring(random_effect.type) .. ", id: " .. tostring(random_effect.id) .. ")")
+    print("Testing random effect: " .. tostring(random_scene.name) .. " (effect_id: " .. tostring(random_scene.effect_id) .. ")")
     
     -- Apply the random effect
-    local result = twinkly.set_effect(ip, random_effect.id, random_effect.type)
-    test.assert_not_nil(result, "Should succeed setting random effect " .. tostring(random_effect.id))
+    local result = twinkly.set_effect(ip, random_scene.effect_id, "builtin")
+    test.assert_not_nil(result, "Should succeed setting random effect " .. tostring(random_scene.effect_id))
     
     socket.sleep(1)  -- Give effect time to activate
     
     -- Verify the device is in the correct mode
     local mode = twinkly.get_mode(ip)
-    local expected_mode = (random_effect.type == "builtin") and "effect" or "movie"
-    test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after setting " .. random_effect.type .. " effect")
+    test.assert_equals(mode, "effect", "Device should be in effect mode after setting effect")
     
     -- Try to verify the current effect (if supported)
     local current_effect = twinkly.get_effect(ip)
     if current_effect then
-      test.assert_equals(current_effect.id, random_effect.id, "Current effect ID should match the set effect ID")
+      test.assert_equals(current_effect.id, random_scene.effect_id, "Current effect ID should match the set effect ID")
       print("✓ Verified current effect ID matches set effect: " .. tostring(current_effect.id))
     else
       print("Note: Device does not support getting current effect - cannot verify effect ID match")
     end
   else
-    print("Note: Skipping random effect test - no effects available on device")
+    print("Note: Skipping random effect test - no scenes available")
   end
 end)
 
