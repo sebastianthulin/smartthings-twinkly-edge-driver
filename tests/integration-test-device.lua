@@ -197,21 +197,21 @@ end)
 
 
 test.describe("Can set and verify random effect", function()
-  -- Get all available scenes
-  local scenes = twinkly.get_predefined_scenes()
-  test.assert_not_nil(scenes, "Should get scenes list")
+  -- Get all available effects (predefined static list)
+  local effects = twinkly.list_effects(ip)
+  test.assert_not_nil(effects, "Should get effects list")
   
-  if #scenes > 0 then
-    -- Choose a random scene from the list
+  if #effects > 0 then
+    -- Choose a random effect from the list
     math.randomseed(math.floor(os.time() + os.clock() * 1000))
-    local random_index = math.random(1, #scenes)
-    local random_scene = scenes[random_index]
+    local random_index = math.random(1, #effects)
+    local random_effect = effects[random_index]
     
-    print("Testing random effect: " .. tostring(random_scene.name) .. " (effect_id: " .. tostring(random_scene.effect_id) .. ")")
+    print("Testing random effect: " .. tostring(random_effect.name) .. " (effect_id: " .. tostring(random_effect.id) .. ")")
     
     -- Apply the random effect
-    local result = twinkly.set_effect(ip, random_scene.effect_id, "builtin")
-    test.assert_not_nil(result, "Should succeed setting random effect " .. tostring(random_scene.effect_id))
+    local result = twinkly.set_effect(ip, random_effect.id, "static")
+    test.assert_not_nil(result, "Should succeed setting random effect " .. tostring(random_effect.id))
     
     socket.sleep(1)  -- Give effect time to activate
     
@@ -221,7 +221,7 @@ test.describe("Can set and verify random effect", function()
     
 
   else
-    print("Note: Skipping random effect test - no scenes available")
+    print("Note: Skipping random effect test - no effects available")
   end
 end)
 

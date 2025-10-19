@@ -1,10 +1,8 @@
 -- Effect Manager Feature Implementation
--- Orchestrates static effects and movie management
+-- Manages predefined static effects only (simplified approach - no device API calls)
 
 local class = require "vendor.30log"
 local StaticEffects = require "features.effects.static_effects"
-local EffectController = require "features.effects.effect_controller"
-local MovieManager = require "features.effects.movie_manager"
 
 local EffectManager = class("EffectManager")
 
@@ -13,81 +11,61 @@ function EffectManager:init(http_client, auth_service, logger)
   self._auth_service = auth_service
   self._logger = logger
   
-  -- Initialize effect handlers
+  -- Initialize only static effects - no device API discovery
   self._static_effects = StaticEffects:new()
-  self._effect_controller = EffectController:new(http_client, auth_service, logger)
-  self._movie_manager = MovieManager:new(http_client, auth_service, logger)
 end
 
--- List available effects (static list, not from device)
+-- List available effects (predefined static list only)
 function EffectManager:list_effects(ip, effect_type)
-  effect_type = effect_type or "all"  -- default to all effects
-  
+  -- Always return static effects - no device API discovery
+  local static_list = self._static_effects:list_effects()
   local list = {}
-
-  -- Get static effects (always available)
-  if effect_type == "all" or effect_type == "builtin" or effect_type == "static" then
-    local static_list = self._static_effects:list_effects()
-    for _, effect in ipairs(static_list) do
-      effect.type = "static"
-      table.insert(list, effect)
-    end
-  end
-
-  -- Get movies from device (if requested)
-  if effect_type == "all" or effect_type == "user" or effect_type == "movie" then
-    local movie_list = self._movie_manager:list_movies(ip)
-    for _, movie in ipairs(movie_list) do
-      movie.type = "movie"
-      table.insert(list, movie)
-    end
+  
+  for _, effect in ipairs(static_list) do
+    effect.type = "static"
+    table.insert(list, effect)
   end
 
   return list
 end
 
--- Activate a specific effect by ID
+-- Activate a specific effect by ID (static effects only)
 function EffectManager:set_effect(ip, effect_id, effect_type)
   if not effect_id then
     return nil, "Effect ID is required"
   end
   
-  self._logger:debug("Setting effect " .. tostring(effect_id) .. " (" .. tostring(effect_type or "static") .. ") on " .. tostring(ip))
+  self._logger:debug("Setting static effect " .. tostring(effect_id) .. " on " .. tostring(ip))
 
-  -- Default to static effects
-  effect_type = effect_type or "static"
-
-  if effect_type == "static" or effect_type == "builtin" then
-    -- For static effects: validate ID and set effect mode
-    if not self._static_effects:is_valid_effect_id(effect_id) then
-      return nil, "Invalid effect ID: " .. tostring(effect_id)
-    end
-    
-    -- Set mode to effect first
-    local ModeControl = require "features.device_control.mode_control"
-    local mode_handler = ModeControl:new(self._http_client, self._auth_service, self._logger)
-    local ok, err = mode_handler:set_mode(ip, "effect")
-    if not ok then 
-      return nil, err 
-    end
-    
-    return self._effect_controller:set_effect(ip, effect_id)
-  elseif effect_type == "movie" then
-    -- For movies: set mode to movie first
-    local ModeControl = require "features.device_control.mode_control"
-    local mode_handler = ModeControl:new(self._http_client, self._auth_service, self._logger)
-    local ok, err = mode_handler:set_mode(ip, "movie")
-    if not ok then 
-      return nil, err 
-    end
-    
-    return self._movie_manager:set_movie(ip, effect_id)
+  -- Validate effect ID exists in static list
+  if not self._static_effects:is_valid_effect_id(effect_id) then
+    return nil, "Invalid effect ID: " .. tostring(effect_id)
+  end
+  
+  -- Set mode to effect first
+  local ModeControl = require "features.device_control.mode_control"
+  local mode_handler = ModeControl:new(self._http_client, self._auth_service, self._logger)
+  local ok, err = mode_handler:set_mode(ip, "effect")
+  if not ok then 
+    return nil, err 
+  end
+  
+  -- Use direct HTTP request to activate effect (simplified approach)
+  local payload = {effect_id = effect_id}
+  local request_handler = require "features.http.authenticated_request"
+  local handler = request_handler:new(self._http_client, self._auth_service, self._logger)
+  
+  local ok, code, status, body = handler:make_request(
+    ip, "/xled/v1/led/effects/current", "POST", payload)
+  
+  if ok and code == 200 then
+    return true
   else
-    return nil, "Unknown effect type: " .. tostring(effect_type)
+    return nil, "Failed to set effect: " .. tostring(status or "Unknown error")
   end
 end
 
--- Get current effect information
+-- Get current effect information (static effects only)
 function EffectManager:get_effect(ip)
   -- First check if device is in effect mode
   local ModeControl = require "features.device_control.mode_control"
@@ -99,13 +77,29 @@ function EffectManager:get_effect(ip)
   end
   
   if mode == "effect" then
-    -- Device is in effect mode - check current effect
-    return self._effect_controller:get_current_effect(ip)
-  elseif mode == "movie" then
-    -- Device is in movie mode - check current movie
-    return self._movie_manager:get_current_movie(ip)
+    -- Device is in effect mode - try to get current effect via API
+    local request_handler = require "features.http.authenticated_request"
+    local handler = request_handler:new(self._http_client, self._auth_service, self._logger)
+    
+    local ok, code, status, body = handler:make_request(
+      ip, "/xled/v1/led/effects/current", "GET")
+    
+    if ok and code == 200 and body then
+      local current_effect = {id = body.effect_id}
+      
+      -- Enhance with static effect information if available
+      local static_effect = self._static_effects:get_effect_by_id(current_effect.id)
+      if static_effect then
+        current_effect.name = static_effect.name
+        current_effect.description = static_effect.description
+        current_effect.type = "static"
+      end
+      return current_effect
+    else
+      return nil, "Unable to get current effect from device"
+    end
   else
-    return nil, "Device is not in effect or movie mode (current mode: " .. tostring(mode) .. ")"
+    return nil, "Device is not in effect mode (current mode: " .. tostring(mode) .. ")"
   end
 end
 

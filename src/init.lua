@@ -8,9 +8,8 @@ local config = require "twinkly.config"
 
 
 
--- Use built-in Twinkly Effects and Scenes capability references
+-- Use built-in Twinkly Effects capability reference
 local effects_cap = caps["voicetiger23642.twinklyEffects"]
-local scenes_cap = caps["voicetiger23642.twinklyScenes"]
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -243,90 +242,8 @@ local function set_saturation(driver, device, command)
 end
 
 -----------------------------------------------------------
--- SCENES CONTROL  
+-- EFFECTS CONTROL  
 -----------------------------------------------------------
-local function list_scenes(driver, device, command)
-  local ip = resolve_ip(device)
-  local category = command.args and command.args.category
-  log.info("LIST_SCENES -> " .. tostring(ip or "?") .. " category=" .. tostring(category or "all"))
-  
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local scenes = twinkly.list_scenes(category)
-      if scenes then
-        log.info("Found " .. #scenes .. " scenes" .. (category and (" in category: " .. category) or ""))
-        device:emit_event(scenes_cap.availableScenes({ scenes = scenes }))
-      else
-        log.error("Failed to list scenes")
-      end
-    end)
-  end
-end
-
-local function activate_scene(driver, device, command)
-  local ip = resolve_ip(device)
-  local scene_id = command.args.sceneId
-  log.info(string.format("ACTIVATE_SCENE -> %s scene=%s", tostring(ip or "?"), tostring(scene_id)))
-  
-  if ip and scene_id then
-    suspend_polling_during_operation(driver, device, function()
-      local result, err = twinkly.activate_scene(ip, scene_id)
-      if result then
-        log.info("Scene activated successfully: " .. result.scene_name)
-        device:emit_event(caps.switch.switch.on())
-        
-        -- Store the current scene for later retrieval
-        device:set_field("last_scene_id", scene_id, { persist = true })
-        
-        -- Update scene state
-        local scene_info = twinkly.get_scene_categories()
-        local scene_details = nil
-        
-        -- Get scene details for UI display
-        local scene_details = twinkly.get_scene_by_id(scene_id)
-        
-        if scene_details then
-          device:emit_event(scenes_cap.currentScene({
-            id = scene_id,
-            name = scene_details.name,
-            category = scene_details.category
-          }))
-          
-          -- Update brightness and color state to match scene
-          device:emit_event(caps.switchLevel.level(scene_details.brightness))
-          if scene_details.color then
-            -- Convert RGB to HSV for color control
-            local hue, sat = twinkly.rgb_to_hsv(scene_details.color.red, scene_details.color.green, scene_details.color.blue)
-            device:emit_event(caps.colorControl.hue(hue))
-            device:emit_event(caps.colorControl.saturation(sat))
-          end
-        else
-          device:emit_event(scenes_cap.currentScene({
-            id = scene_id,
-            name = "Scene " .. scene_id,
-            category = "unknown"
-          }))
-        end
-      else
-        log.error("Failed to activate scene: " .. tostring(err))
-      end
-    end)
-  end
-end
-
-local function get_scene_categories(driver, device, command)
-  log.info("GET_SCENE_CATEGORIES")
-  
-  local categories = twinkly.get_scene_categories()
-  if categories then
-    log.info("Found " .. #categories .. " scene categories")
-    device:emit_event(scenes_cap.sceneCategories(categories))
-  else
-    log.error("Failed to get scene categories")
-  end
-end
-
--- Helper function to convert RGB to HSV
 local function list_effects(driver, device, command)
   local ip = resolve_ip(device)
   log.info("LIST_EFFECTS -> " .. tostring(ip or "?"))
@@ -493,15 +410,6 @@ local function initialize_capabilities(device)
     device:emit_event(caps.colorControl.hue(0))
     device:emit_event(caps.colorControl.saturation(100))
   end
-
-  -- Initialize scene capabilities if available
-  if device.profile.name and (device.profile.name:match("twinkly-color-light") or device.profile.name:match("twinkly-scenes-light")) then
-    -- Load available scene categories
-    local categories = twinkly.get_scene_categories()
-    if categories then
-      device:emit_event(scenes_cap.sceneCategories(categories))
-    end
-  end
 end
 
 local function device_init(driver, device)
@@ -615,11 +523,6 @@ local twinkly_driver = Driver("twinkly", {
     [effects_cap.ID] = {
       [effects_cap.commands.listEffects.NAME] = list_effects,
       [effects_cap.commands.setEffect.NAME] = set_effect,
-    },
-    [scenes_cap.ID] = {
-      [scenes_cap.commands.listScenes.NAME] = list_scenes,
-      [scenes_cap.commands.activateScene.NAME] = activate_scene,
-      [scenes_cap.commands.getSceneCategories.NAME] = get_scene_categories,
     }
   }
 })

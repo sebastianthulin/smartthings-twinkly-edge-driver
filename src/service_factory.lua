@@ -8,7 +8,6 @@ local HttpClient = require "services.http_client"
 local ColorConverter = require "services.color_converter"
 local AuthenticationService = require "services.authentication_service"
 local DeviceService = require "services.device_service"
-local ScenesService = require "services.scenes_service"
 local TwinklyController = require "twinkly_controller"
 
 local ServiceFactory = {}
@@ -50,13 +49,6 @@ function ServiceFactory.create_container()
     local color_converter = c:resolve("color_converter")
     local logger = c:resolve("logger")
     return DeviceService:new(http_client, auth_service, color_converter, logger)
-  end)
-  
-  -- Register scenes service with dependencies
-  container:register_singleton("scenes_service", function(c)
-    local device_service = c:resolve("device_service")
-    local logger = c:resolve("logger")
-    return ScenesService:new(device_service, logger)
   end)
   
   -- Register main controller with dependencies

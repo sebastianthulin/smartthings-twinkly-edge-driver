@@ -11,7 +11,6 @@ function TwinklyController:init(service_container)
   -- Resolve dependencies from container
   self._device_service = service_container:resolve("device_service")
   self._auth_service = service_container:resolve("auth_service")
-  self._scenes_service = service_container:resolve("scenes_service")
   self._color_converter = service_container:resolve("color_converter")
   self._logger = service_container:resolve("logger")
 end
@@ -73,32 +72,11 @@ function TwinklyController:set_effect(ip, effect_id, effect_type)
   return self._device_service:set_effect(ip, effect_id, effect_type)
 end
 
-
-
--- Scenes control (firmware 2.9.1+)
-function TwinklyController:list_scenes(category)
-  return self._scenes_service:list_scenes(category)
+function TwinklyController:get_effect(ip)
+  return self._device_service:get_effect(ip)
 end
 
-function TwinklyController:activate_scene(ip, scene_id)
-  return self._scenes_service:activate_scene(ip, scene_id)
-end
 
-function TwinklyController:get_current_scene(ip)
-  return self._scenes_service:get_current_scene(ip)
-end
-
-function TwinklyController:get_scene_categories()
-  return self._scenes_service:get_categories()
-end
-
-function TwinklyController:get_scene_by_id(scene_id)
-  return self._scenes_service:get_scene_by_id(scene_id)
-end
-
-function TwinklyController:get_predefined_scenes()
-  return self._scenes_service:get_predefined_scenes()
-end
 
 -- Service container access for advanced usage
 function TwinklyController:get_service_container()

@@ -13,8 +13,6 @@ components:
         version: 1
       - id: voicetiger23642.twinklyEffects
         version: 1
-      - id: voicetiger23642.twinklyScenes
-        version: 1
     categories:
       - name: Light
 
