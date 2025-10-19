@@ -225,7 +225,7 @@ tests["random_effect"] = function()
       socket.sleep(1)
       
       local mode = twinkly.get_mode(ip)
-      local expected_mode = (random_effect.type == "builtin") and "effect" or "movie"
+      local expected_mode = (random_effect.type == "static" or random_effect.type == "builtin") and "effect" or "movie"
       test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after setting " .. random_effect.type .. " effect")
       
       local current_effect = twinkly.get_effect(ip)

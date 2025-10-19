@@ -187,7 +187,7 @@ test.describe("Can activate effects", function()
     
     -- Verify the device is in the correct mode based on effect type
     local mode = twinkly.get_mode(ip)
-    local expected_mode = (first_effect.type == "builtin") and "effect" or "movie"
+    local expected_mode = (first_effect.type == "static" or first_effect.type == "builtin") and "effect" or "movie"
     test.assert_equals(mode, expected_mode, "Device should be in " .. expected_mode .. " mode after " .. first_effect.type .. " effect activation")
   else
     print("Note: Skipping effect activation test - no effects available on device")
@@ -278,7 +278,7 @@ test.describe("Effects integration with mode switching", function()
     
     -- Verify device is now on in the correct mode based on effect type
     local mode_on = twinkly.get_mode(ip)
-    local expected_mode = (test_effect.type == "builtin") and "effect" or "movie"
+    local expected_mode = (test_effect.type == "static" or test_effect.type == "builtin") and "effect" or "movie"
     test.assert_equals(mode_on, expected_mode, "Device should be in " .. expected_mode .. " mode after " .. test_effect.type .. " effect")
     
     -- Turn off and verify

@@ -1,5 +1,5 @@
 -- Scene Activator Feature Implementation
--- Handles scene activation and device state management
+-- Handles scene activation (predefined scenes only - no device retrieval)
 
 local class = require "vendor.30log"
 
@@ -25,7 +25,7 @@ function SceneActivator:activate_scene(ip, scene)
   end
   
   -- Set the effect
-  local effect_ok, effect_err = self._device_service:set_effect(ip, scene.effect_id, "builtin")
+  local effect_ok, effect_err = self._device_service:set_effect(ip, scene.effect_id, "static")
   if not effect_ok then
     return nil, "Failed to set effect: " .. tostring(effect_err)
   end
