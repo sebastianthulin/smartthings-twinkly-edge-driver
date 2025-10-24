@@ -42,12 +42,17 @@ function EffectManager:set_effect(ip, effect_id, effect_type)
     return nil, "Invalid effect ID: " .. tostring(effect_id)
   end
   
-  -- Set mode to effect first
+  -- Only set mode to 'effect' if not already set
   local ModeControl = require "features.device_control.mode_control"
   local mode_handler = ModeControl:new(self._http_client, self._auth_service, self._logger)
-  local ok, err = mode_handler:set_mode(ip, "effect")
-  if not ok then 
-    return nil, err 
+  local current_mode = mode_handler:get_mode(ip)
+  if current_mode ~= "effect" then
+    local ok, err = mode_handler:set_mode(ip, "effect")
+    if not ok then 
+      return nil, err 
+    end
+  else
+    self._logger:debug("Device already in 'effect' mode, skipping mode set.")
   end
   
   -- Use direct HTTP request to activate effect (simplified approach)
