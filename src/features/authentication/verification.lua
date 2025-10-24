@@ -26,7 +26,7 @@ function VerificationFeature:verify_token(ip, token)
     },
     body = "{}"
   })
-
+  self._logger:debug(string.format("[TokenDebug] Verification response for %s: success=%s code=%s body=%s", ip, tostring(verify_response.success), tostring(verify_response.status_code), tostring(verify_response.body)))
   if verify_response.success and verify_response.status_code == 200 then
     self._logger:debug("[VerificationFeature] Token valid for " .. ip)
     return true

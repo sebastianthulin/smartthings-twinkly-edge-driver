@@ -23,6 +23,7 @@ function AuthenticatedRequestHandler:make_request(ip, endpoint, method, payload)
     self._logger:error("No token for " .. tostring(ip) .. ": " .. tostring(err))
     return nil, err
   end
+  self._logger:debug(string.format("[TokenDebug] Using token for %s: %s (length=%d)", ip, tostring(token), token and #token or 0))
 
   local headers = { ["X-Auth-Token"] = token }
   if body then
@@ -54,7 +55,7 @@ function AuthenticatedRequestHandler:make_request(ip, endpoint, method, payload)
       self._logger:error("Re-login failed for " .. tostring(ip) .. ": " .. tostring(nerr))
       return nil, nerr
     end
-    
+    self._logger:debug(string.format("[TokenDebug] Refreshed token for %s: %s (length=%d)", ip, tostring(new_token), new_token and #new_token or 0))
     headers["X-Auth-Token"] = new_token
     response = self._http_client:request({
       url = "http://" .. ip .. endpoint,

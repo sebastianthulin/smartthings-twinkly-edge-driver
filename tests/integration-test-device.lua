@@ -4,12 +4,15 @@ package.path = package.path .. ";../src/?.lua;./?.lua"
 _G.IS_LOCAL_TEST = true
 
 -- Mock the log module for integration tests
+-- Use the real logger for local tests (writes to disk)
+local Logger = require("services.logger")
+local logger = Logger:new()
 package.preload["log"] = function()
   return {
-    debug = function(...) end,
-    info = function(...) print("[INFO]", ...) end,
-    warn = function(...) print("[WARN]", ...) end,
-    error = function(...) print("[ERROR]", ...) end,
+    debug = function(...) logger:debug(...) end,
+    info  = function(...) logger:info(...) end,
+    warn  = function(...) logger:warn(...) end,
+    error = function(...) logger:error(...) end,
   }
 end
 
