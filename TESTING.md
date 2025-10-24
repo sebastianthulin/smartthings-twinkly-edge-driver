@@ -99,6 +99,87 @@ IP=192.168.1.45 HUE=120 SAT=100 VAL=80 npm run test:color
 IP=192.168.1.45 RED=255 GREEN=0 BLUE=0 npm run test:rgb
 ```
 
+## Raw API Response Logging
+
+For debugging real device interactions, you can enable detailed API request/response logging:
+
+### Enable Raw Responses
+
+```bash
+# Enable for all integration tests
+RAW_RESPONSES=true npm run test:integration
+
+# Enable for specific test
+RAW_RESPONSES=true npm run test:integration:get_mode
+
+# Or use convenient :raw variants
+npm run test:integration:get_mode:raw
+npm run test:integration:brightness:raw
+```
+
+### Log File Storage
+
+When raw responses are enabled, all API interactions are stored in timestamped log files:
+
+```bash
+# View all log files
+npm run logs:view
+
+# View latest log file
+npm run logs:latest
+
+# Clean old log files
+npm run logs:clean
+```
+
+**Log File Location**: `test-logs/api_<method>_<endpoint>_<timestamp>.log`
+
+**Example**: `test-logs/api_get_mode_2024-10-17_14-30-45.log`
+
+### Log File Format
+
+Each log file contains:
+
+```
+================================================================================
+🌐 RAW API REQUEST/RESPONSE LOG
+================================================================================
+Timestamp: 2024-10-17 14:30:45
+
+📤 REQUEST:
+   Method: GET
+   URL: http://192.168.87.32/xled/v1/led/mode
+   Headers:
+     X-Auth-Token: ***HIDDEN***
+   Body: (none)
+
+📥 RESPONSE:
+   Status: 200 OK
+   Headers:
+     content-type: application/json
+   Body:
+     {
+       "mode": "effect",
+       "code": 1000
+     }
+================================================================================
+```
+
+### Log Index File
+
+The `test-logs/index.txt` file provides a quick overview of all logged requests:
+
+```
+2024-10-17 14:30:45 | GET mode | test-logs/api_get_mode_2024-10-17_14-30-45.log
+2024-10-17 14:31:02 | POST effects | test-logs/api_post_effects_2024-10-17_14-31-02.log
+```
+
+This allows you to:
+- Inspect real device responses for API documentation
+- Debug authentication and request formatting issues  
+- Compare responses across different device firmware versions
+- Build test cases based on actual device behavior
+
 ## Test Framework Features
 
 ### Mocked SmartThings Environment

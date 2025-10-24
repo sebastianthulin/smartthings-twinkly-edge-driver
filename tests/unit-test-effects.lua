@@ -6,16 +6,26 @@ local test_utils = require("test-utils")
 local test = test_utils.test_framework
 
 -- Test configuration includes effects endpoints
-test.describe("Config includes effects endpoints", function()
+test.describe("Config includes official REST API endpoints", function()
   -- Load config directly
   local config = require("twinkly.config")
   test.assert_not_nil(config, "Should load config")
+  
+  -- Test official REST API endpoints based on documentation
   test.assert_not_nil(config.api.endpoints.movies, "Should have movies endpoint")
-  test.assert_not_nil(config.api.endpoints.user_movies, "Should have user_movies endpoint")
-  test.assert_not_nil(config.api.endpoints.movie_play, "Should have movie_play endpoint")
-  test.assert_equals(config.api.endpoints.movies, "/xled/v1/led/movies", "Movies endpoint should be correct")
-  test.assert_equals(config.api.endpoints.user_movies, "/xled/v1/led/user_movies", "User movies endpoint should be correct")
-  test.assert_equals(config.api.endpoints.movie_play, "/xled/v1/led/movie/play", "Movie play endpoint should be correct")
+  test.assert_not_nil(config.api.endpoints.movies_current, "Should have movies_current endpoint") 
+  test.assert_not_nil(config.api.endpoints.effects, "Should have effects endpoint")
+  test.assert_not_nil(config.api.endpoints.effects_current, "Should have effects_current endpoint")
+  test.assert_not_nil(config.api.endpoints.movie_config, "Should have movie_config endpoint")
+  test.assert_not_nil(config.api.endpoints.movie_full, "Should have movie_full endpoint")
+  
+  -- Verify correct paths from official documentation
+  test.assert_equals(config.api.endpoints.movies, "/xled/v1/movies", "Movies endpoint should match API docs")
+  test.assert_equals(config.api.endpoints.movies_current, "/xled/v1/led/movies/current", "Movies current endpoint should match API docs")
+  test.assert_equals(config.api.endpoints.effects, "/xled/v1/led/effects", "Effects endpoint should match API docs")
+  test.assert_equals(config.api.endpoints.effects_current, "/xled/v1/led/effects/current", "Effects current endpoint should match API docs")
+  test.assert_equals(config.api.endpoints.movie_config, "/xled/v1/led/movie/config", "Movie config endpoint should match API docs")
+  test.assert_equals(config.api.endpoints.movie_full, "/xled/v1/led/movie/full", "Movie full endpoint should match API docs")
 end)
 
 -- Test DeviceService interface includes effects methods

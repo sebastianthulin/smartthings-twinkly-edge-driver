@@ -2,7 +2,7 @@
 -- This provides a simple interface using dependency injection internally
 -- Uses the new feature-based architecture
 
-local ServiceFactory = require "service_factory"
+local ServiceFactory = require "service_factory_new"
 
 -- Create the controller instance using dependency injection
 local controller = ServiceFactory.create_twinkly_controller()
@@ -54,6 +54,31 @@ twinkly.rgb_to_hsv = function(r, g, b)
   return controller:rgb_to_hsv(r, g, b)
 end
 
+-- Scenes control (firmware 2.9.1+)
+twinkly.list_scenes = function(category)
+  return controller:list_scenes(category)
+end
+
+twinkly.activate_scene = function(ip, scene_id)
+  return controller:activate_scene(ip, scene_id)
+end
+
+twinkly.get_current_scene = function(ip)
+  return controller:get_current_scene(ip)
+end
+
+twinkly.get_scene_categories = function()
+  return controller:get_scene_categories()
+end
+
+twinkly.get_scene_by_id = function(scene_id)
+  return controller:get_scene_by_id(scene_id)
+end
+
+twinkly.get_predefined_scenes = function()
+  return controller:get_predefined_scenes()
+end
+
 -- Status / mode query
 twinkly.get_mode = function(ip)
   return controller:get_mode(ip)
@@ -71,8 +96,6 @@ end
 twinkly.get_effect = function(ip)
   return controller:get_effect(ip)
 end
-
-
 
 -- Expose the controller for advanced usage
 twinkly._controller = controller

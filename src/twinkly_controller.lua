@@ -11,6 +11,7 @@ function TwinklyController:init(service_container)
   -- Resolve dependencies from container
   self._device_service = service_container:resolve("device_service")
   self._auth_service = service_container:resolve("auth_service")
+  self._color_converter = service_container:resolve("color_converter")
   self._logger = service_container:resolve("logger")
 end
 
@@ -58,18 +59,24 @@ function TwinklyController:get_color(ip)
   return self._device_service:get_color(ip)
 end
 
+function TwinklyController:rgb_to_hsv(r, g, b)
+  return self._color_converter:rgb_to_hsv(r, g, b)
+end
+
 -- Effects control
 function TwinklyController:list_effects(ip, type)
   return self._device_service:list_effects(ip, type)
 end
 
-function TwinklyController:set_effect(ip, effect_id)
-  return self._device_service:set_effect(ip, effect_id)
+function TwinklyController:set_effect(ip, effect_id, effect_type)
+  return self._device_service:set_effect(ip, effect_id, effect_type)
 end
 
 function TwinklyController:get_effect(ip)
   return self._device_service:get_effect(ip)
 end
+
+
 
 -- Service container access for advanced usage
 function TwinklyController:get_service_container()

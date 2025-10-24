@@ -58,10 +58,10 @@ local function list_user_effects(ip)
 end
 
 -- Example 4: Activate an effect by ID
-local function activate_effect(ip, effect_id)
-  print("Activating effect " .. tostring(effect_id) .. " on device " .. ip)
+local function activate_effect(ip, effect_id, effect_type)
+  print("Activating " .. tostring(effect_type or "builtin") .. " effect " .. tostring(effect_id) .. " on device " .. ip)
   
-  local success, message = twinkly.set_effect(ip, effect_id)
+  local success, message = twinkly.set_effect(ip, effect_id, effect_type)
   if success then
     print("Effect activated successfully!")
     print("Response: " .. tostring(message))

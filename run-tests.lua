@@ -6,6 +6,7 @@
 package.path = package.path .. ";tests/?.lua;src/?.lua"
 
 local test_type = arg and arg[1] or "all"
+local specific_test = arg and arg[2] -- For individual integration tests
 
 print("Twinkly Edge Driver Test Suite")
 print("==============================")
@@ -62,17 +63,33 @@ local function run_integration_tests()
   
   local all_passed = true
   
-  local integration_tests = {
-    {"integration-test-device.lua", "Device Integration Tests"}
-  }
-  
-  for _, test_info in ipairs(integration_tests) do
-    if not run_test_file(test_info[1], test_info[2]) then
-      all_passed = false
+  if specific_test then
+    -- Run individual integration test
+    local cmd = string.format("cd tests && lua run-specific-integration-test.lua %s", specific_test)
+    local result = os.execute(cmd)
+    local success = (result == true or result == 0)
+    
+    if success then
+      print("✓ Integration test '" .. specific_test .. "' PASSED")
+      return true
+    else
+      print("✗ Integration test '" .. specific_test .. "' FAILED (exit code: " .. tostring(result) .. ")")
+      return false
     end
+  else
+    -- Run all integration tests
+    local integration_tests = {
+      {"integration-test-device.lua", "Device Integration Tests"}
+    }
+    
+    for _, test_info in ipairs(integration_tests) do
+      if not run_test_file(test_info[1], test_info[2]) then
+        all_passed = false
+      end
+    end
+    
+    return all_passed
   end
-  
-  return all_passed
 end
 
 -- Main test execution

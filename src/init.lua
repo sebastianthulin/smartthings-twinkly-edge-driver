@@ -2,63 +2,14 @@ local Driver = require "st.driver"
 local caps = require "st.capabilities"
 local json = require "dkjson"
 local twinkly = require "twinkly"
-local login = require "twinkly.login"
+
 local socket = require "socket"
 local config = require "twinkly.config"
 
--- Custom capability definition for Twinkly Effects
-local effects_capability_definition = {
-  id = "sebastianthulin44463.twinklyEffects",
-  version = 1,
-  commands = {
-    listEffects = {
-      name = "listEffects",
-      arguments = {}
-    },
-    setEffect = {
-      name = "setEffect", 
-      arguments = {
-        {
-          name = "effectId",
-          optional = false,
-          type = "STRING"
-        }
-      }
-    }
-  },
-  attributes = {
-    availableEffects = {
-      schema = {
-        type = "object",
-        properties = {
-          effects = {
-            type = "array",
-            items = {
-              type = "object",
-              properties = {
-                id = { type = "string" },
-                name = { type = "string" },
-                type = { type = "string" }
-              }
-            }
-          }
-        }
-      }
-    },
-    currentEffect = {
-      schema = {
-        type = "object",
-        properties = {
-          id = { type = "string" },
-          name = { type = "string" }
-        }
-      }
-    }
-  }
-}
 
--- Register the custom capability
-local effects_cap = caps.build_cap_from_json_string(json.encode(effects_capability_definition))
+
+-- Use built-in Twinkly Effects capability reference
+local effects_cap = caps["voicetiger23642.twinklyEffects"]
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -71,8 +22,6 @@ if not ok then
 end
 
 local schedule_poll
-
-
 
 -----------------------------------------------------------
 -- Resolve IP helper
@@ -177,8 +126,7 @@ local function handle_refresh(driver, device, command)
   log.info("REFRESH -> " .. tostring(ip or "?"))
   if not ip then return end
 
-  -- Always ensure we have a valid token before manual refresh
-  local token, err = login.ensure_token(ip)
+  local token, err = twinkly.ensure_token(ip)
   if not token then
     log.warn(string.format("[refresh] Could not login for %s: %s", ip, tostring(err)))
     return
@@ -200,31 +148,15 @@ local function handle_refresh(driver, device, command)
   if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
     local ok_b, brightness = pcall(twinkly.get_brightness, ip)
     if ok_b and brightness then
-      local level = math.floor((brightness / 255) * 100)
+      local level = brightness
       device:emit_event(caps.switchLevel.level(level))
     end
 
     local ok_c, color = pcall(twinkly.get_color, ip)
     if ok_c and color and color.red then
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max, min = math.max(r, g, b), math.min(r, g, b)
-      local delta = max - min
-      local h, s, v = 0, 0, max
-
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
-      end
-
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
+      local hue, saturation = twinkly.rgb_to_hsv(color.red, color.green, color.blue)
+      device:emit_event(caps.colorControl.hue(math.floor((hue / 360) * 100)))
+      device:emit_event(caps.colorControl.saturation(math.floor(saturation * 100)))
     end
   end
 end
@@ -332,11 +264,12 @@ end
 local function set_effect(driver, device, command)
   local ip = resolve_ip(device)
   local effect_id = command.args.effectId
-  log.info(string.format("SET_EFFECT -> %s effect=%s", tostring(ip or "?"), tostring(effect_id)))
+  local effect_type = command.args.effectType
+  log.info(string.format("SET_EFFECT -> %s effect=%s type=%s", tostring(ip or "?"), tostring(effect_id), tostring(effect_type or "nil")))
   
   if ip and effect_id then
     suspend_polling_during_operation(driver, device, function()
-      local ok, result = pcall(twinkly.set_effect, ip, effect_id)
+      local ok, result = pcall(twinkly.set_effect, ip, effect_id, effect_type)
       if ok then
         log.info("Effect set successfully: " .. tostring(result))
         device:emit_event(caps.switch.switch.on())
@@ -366,7 +299,7 @@ local function poll_state(driver, device)
   log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
 
   -- Ensure valid token before poll
-  local token, err = login.ensure_token(ip)
+  local token, err = twinkly.ensure_token(ip)
   if not token then
     log.warn(string.format("[poll] Could not ensure token for %s: %s", ip, tostring(err)))
     return
@@ -377,8 +310,8 @@ local function poll_state(driver, device)
   if not ok or not mode_data then
     log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_data)))
     if socket and socket.sleep then socket.sleep(config.timing.poll_failure_delay) end
-    login.clear_token(ip)
-    local retry_token = login.ensure_token(ip)
+    twinkly.clear_token(ip)
+    local retry_token = twinkly.ensure_token(ip)
     if retry_token then
       ok, mode_data = pcall(twinkly.get_mode, ip)
     else
@@ -426,23 +359,9 @@ local function poll_state(driver, device)
 
       local ok_c, color = pcall(twinkly.get_color, ip)
       if ok_c and color and color.red then
-        local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-        local max, min = math.max(r, g, b), math.min(r, g, b)
-        local delta = max - min
-        local h, s, v = 0, 0, max
-        if delta > 0 then
-          s = delta / max
-          if max == r then
-            h = ((g - b) / delta) % 6
-          elseif max == g then
-            h = (b - r) / delta + 2
-          else
-            h = (r - g) / delta + 4
-          end
-          h = h * 60
-        end
-        new_hue = math.floor((h / 360) * 100)
-        new_sat = math.floor(s * 100)
+        local hue, saturation = twinkly.rgb_to_hsv(color.red, color.green, color.blue)
+        new_hue = math.floor((hue / 360) * 100)
+        new_sat = math.floor(saturation * 100)
       end
     end
 
@@ -483,14 +402,18 @@ end
 -----------------------------------------------------------
 -- LIFECYCLE HANDLERS
 -----------------------------------------------------------
-local function device_init(driver, device)
+local function initialize_capabilities(device)
   device:emit_event(caps.switch.switch.off())
 
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
+  if device.profile.name and device.profile.name:match("twinkly-color-light") then
     device:emit_event(caps.switchLevel.level(100))
     device:emit_event(caps.colorControl.hue(0))
     device:emit_event(caps.colorControl.saturation(100))
   end
+end
+
+local function device_init(driver, device)
+  initialize_capabilities(device)
 
   local existing = device:get_field("poll_timer")
   if existing then
@@ -505,13 +428,7 @@ end
 
 local function device_added(driver, device)
   log.info("Device added: " .. (device.device_network_id or "unknown"))
-  device:emit_event(caps.switch.switch.off())
-
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
+  initialize_capabilities(device)
 
   if not device:get_field("ipAddress") then
     device:set_field("ipAddress", "", { persist = true })

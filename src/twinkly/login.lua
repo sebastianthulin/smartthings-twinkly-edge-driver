@@ -1,8 +1,8 @@
-local http = require("twinkly.http").http
+local http = require("src.twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
-local utils = require "twinkly.utils"
-local config = require "twinkly.config"
+local utils = require "src.twinkly.utils"
+local config = require "src.twinkly.config"
 
 local ok, log = pcall(require, "log")
 if not ok then

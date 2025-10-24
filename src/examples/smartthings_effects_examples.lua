@@ -51,8 +51,8 @@ local function demonstrate_programmatic_usage(ip)
   -- 2. Activate an effect (same as SmartThings setEffect command)
   if #effects > 0 then
     local test_effect = effects[1]
-    print("2. Activating effect: " .. tostring(test_effect.name))
-    local success = twinkly.set_effect(ip, test_effect.id)
+    print("2. Activating effect: " .. tostring(test_effect.name) .. " (type: " .. tostring(test_effect.type) .. ")")
+    local success = twinkly.set_effect(ip, test_effect.id, test_effect.type)
     if success then
       print("Effect activated successfully!")
       

@@ -1,9 +1,9 @@
-local http = require("twinkly.http").http
+local http = require("src.twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
-local login = require "twinkly.login"
+local login = require "src.twinkly.login"
 local socket = require "socket" -- for short sleep between reauth retries
-local config = require "twinkly.config"
+local config = require "src.twinkly.config"
 
 local ok, log = pcall(require, "log")
 if not ok then
@@ -53,14 +53,29 @@ function control.set_mode(ip, mode)
     login.clear_token(ip)
     socket.sleep(config.timing.reauth_delay)
     local new_token, nerr = login.ensure_token(ip)
-    if not new_token then return nil, nerr end
+    if not new_token then
+      log.error("Re-login failed for " .. tostring(ip) .. ": " .. tostring(nerr))
+      return nil, nerr
+    end
+
     res, code, status, resp_body = do_set_mode(ip, mode, new_token)
+    log.debug(string.format("[RETRY set_mode] code=%s body=%s", tostring(code), tostring(resp_body)))
+
+    if code == config.http.unauthorized_code or (resp_body and resp_body:match(config.http.invalid_token_pattern)) then
+      log.warn("[set_mode] Giving up after retry for " .. ip)
+      return nil, "Invalid Token after retry"
+    end
   end
 
   if not res or code ~= config.http.success_code then
-    return nil, "Failed to set mode: " .. tostring(status)
+    log.error("set_mode failed for " .. tostring(ip) .. ": " .. tostring(code) .. " " .. tostring(resp_body))
+    return nil, resp_body
   end
-  return true, resp_body
+
+  -- Proactive token refresh after mode change
+  login.ensure_token(ip)
+
+  return resp_body
 end
 
 ------------------------------------------------------------

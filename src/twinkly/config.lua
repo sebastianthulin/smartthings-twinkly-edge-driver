@@ -11,16 +11,22 @@ config.api = {
   protocol = "http://",
   content_type = "application/json",
   
-  -- API endpoints (relative paths)
+  -- API endpoints (relative paths) - based on official REST API documentation
   endpoints = {
     login = "/xled/v1/login",
     verify = "/xled/v1/verify",
     mode = "/xled/v1/led/mode", 
     brightness = "/xled/v1/led/out/brightness",
     color = "/xled/v1/led/color",
-    movies = "/xled/v1/led/movies",
-    user_movies = "/xled/v1/led/user_movies",
-    movie_play = "/xled/v1/led/movie/play"
+    -- Movies management
+    movies = "/xled/v1/movies",                    -- Get list of movies
+    movies_current = "/xled/v1/led/movies/current", -- Get/set current movie
+    -- Effects management  
+    effects = "/xled/v1/led/effects",              -- Get available effects
+    effects_current = "/xled/v1/led/effects/current", -- Get/set current effect
+    -- Movie configuration and upload
+    movie_config = "/xled/v1/led/movie/config",    -- Get/set movie config
+    movie_full = "/xled/v1/led/movie/full"         -- Upload full movie
   }
 }
 
@@ -29,10 +35,10 @@ config.api = {
 ------------------------------------------------------------
 config.timing = {
   -- Retry delays (in seconds)
-  reauth_delay = 0.3,          -- Delay before retrying after auth failure
-  token_refresh_delay = 0.4,   -- Delay after token refresh
-  poll_failure_delay = 0.3,    -- Delay after polling failure
-  polling_resume_delay = 2,    -- Delay before resuming polling after device operations
+  reauth_delay = 1.0,          -- Delay before retrying after auth failure (increased)
+  token_refresh_delay = 1.0,   -- Delay after token refresh (increased)
+  poll_failure_delay = 1.0,    -- Delay after polling failure (increased)
+  polling_resume_delay = 3,    -- Delay before resuming polling after device operations (increased)
   
   -- Default intervals
   default_poll_interval = 30,  -- Default device polling interval (seconds)
@@ -44,9 +50,11 @@ config.timing = {
 ------------------------------------------------------------
 config.color = {
   -- HSV to RGB conversion settings
-  saturation_scale = 1.8,      -- Saturation curve factor (higher = more saturation retained)
-  gamma = 2.2,                 -- Gamma correction for RGB conversion
-  
+  saturation_scale = 1.2,      -- Saturation curve factor (lower = less aggressive scaling)
+  gamma = 1.6,                 -- Gamma correction for RGB conversion (lower for more linear response)
+  value_curve = "log",        -- Best method: visually improved logarithmic curve for value/brightness
+  value_log_base = 2,          -- Log base 2 gives best perceptual results for dark colors
+
   -- Color value ranges
   max_rgb_value = 255,         -- Maximum RGB component value
   max_hue_degrees = 360,       -- Maximum hue in degrees
