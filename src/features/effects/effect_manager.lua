@@ -52,8 +52,8 @@ function EffectManager:set_effect(ip, effect_id, effect_type)
   
   -- Use direct HTTP request to activate effect (simplified approach)
   local payload = {effect_id = effect_id}
-  local request_handler = require "features.http.authenticated_request"
-  local handler = request_handler:new(self._http_client, self._auth_service, self._logger)
+  local AuthenticatedRequestHandler = require "features.shared.authenticated_request_handler"
+  local handler = AuthenticatedRequestHandler:new(self._http_client, self._auth_service, self._logger)
   
   local ok, code, status, body = handler:make_request(
     ip, "/xled/v1/led/effects/current", "POST", payload)
@@ -78,8 +78,8 @@ function EffectManager:get_effect(ip)
   
   if mode == "effect" then
     -- Device is in effect mode - try to get current effect via API
-    local request_handler = require "features.http.authenticated_request"
-    local handler = request_handler:new(self._http_client, self._auth_service, self._logger)
+    local AuthenticatedRequestHandler = require "features.shared.authenticated_request_handler"
+    local handler = AuthenticatedRequestHandler:new(self._http_client, self._auth_service, self._logger)
     
     local ok, code, status, body = handler:make_request(
       ip, "/xled/v1/led/effects/current", "GET")
