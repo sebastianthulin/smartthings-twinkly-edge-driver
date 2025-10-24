@@ -1,9 +1,9 @@
-local http = require("twinkly.http").http
+local http = require("src.twinkly.http").http
 local ltn12 = require "ltn12"
 local json = require "dkjson"
-local login = require "twinkly.login"
+local login = require "src.twinkly.login"
 local socket = require "socket" -- for short sleep between reauth retries
-local config = require "twinkly.config"
+local config = require "src.twinkly.config"
 
 local ok, log = pcall(require, "log")
 if not ok then
