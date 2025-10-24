@@ -1,7 +1,7 @@
 -- Interfaces for Twinkly driver using 30log framework
 -- This file defines the contracts that classes must implement
 
-local class = require "vendor.30log"
+local class = require "src.vendor.30log"
 
 local interfaces = {}
 

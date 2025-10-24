@@ -50,9 +50,11 @@ config.timing = {
 ------------------------------------------------------------
 config.color = {
   -- HSV to RGB conversion settings
-  saturation_scale = 1.8,      -- Saturation curve factor (higher = more saturation retained)
-  gamma = 2.2,                 -- Gamma correction for RGB conversion
-  
+  saturation_scale = 1.2,      -- Saturation curve factor (lower = less aggressive scaling)
+  gamma = 1.6,                 -- Gamma correction for RGB conversion (lower for more linear response)
+  value_curve = "log",        -- Best method: visually improved logarithmic curve for value/brightness
+  value_log_base = 2,          -- Log base 2 gives best perceptual results for dark colors
+
   -- Color value ranges
   max_rgb_value = 255,         -- Maximum RGB component value
   max_hue_degrees = 360,       -- Maximum hue in degrees

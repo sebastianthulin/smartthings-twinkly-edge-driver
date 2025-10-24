@@ -1,7 +1,7 @@
 -- Color Validator Feature Implementation
 -- Provides comprehensive color validation utilities
 
-local class = require "vendor.30log"
+local class = require "src.vendor.30log"
 
 local ColorValidator = class("ColorValidator")
 

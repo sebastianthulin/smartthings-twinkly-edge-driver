@@ -1,11 +1,11 @@
 -- Color Converter Service Implementation
 -- Orchestrates color conversion features using dependency injection
 
-local class = require "vendor.30log"
-local interfaces = require "interfaces"
-local RgbConverter = require "features.color.rgb_converter"
-local HsvConverter = require "features.color.hsv_converter"
-local ColorValidator = require "features.color.color_validator"
+local class = require "src.vendor.30log"
+local interfaces = require "src.interfaces"
+local RgbConverter = require "src.features.color.rgb_converter"
+local HsvConverter = require "src.features.color.hsv_converter"
+local ColorValidator = require "src.features.color.color_validator"
 
 local ColorConverter = interfaces.IColorConverter:extend("ColorConverter")
 

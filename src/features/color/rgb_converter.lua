@@ -1,7 +1,7 @@
 -- RGB Converter Feature Implementation
 -- Handles RGB color operations and validation
 
-local class = require "vendor.30log"
+local class = require "src.vendor.30log"
 
 local RgbConverter = class("RgbConverter")
 
