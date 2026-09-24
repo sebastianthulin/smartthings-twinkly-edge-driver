@@ -1,29 +1,10 @@
 {
   "name": "twinkly-edge",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "scripts": {
     "check:lua": "((command -v lua >/dev/null 2>&1) >/dev/null 2>&1) || (echo 'Lua not installed. Please install Lua before proceeding.' && exit 1)",
-    "build": "smartthings edge:drivers:package .",
-    "publish": "npm run build && smartthings edge:channels:assign $(npm run --silent driver:id) --channel 912e7705-ec88-413c-a3ac-1c5ecd9015ba",
-    "deploy": "npm run publish && npm run link",
-    "deploy:install": "npm run deploy && npm run hub-install",
+    "build": "mkdir -p .stedge && smartthings edge:drivers:package --build-only .stedge/twinkly-edge.zip .",
     "debug": "smartthings edge:drivers:logcat --log-level DEBUG",
-    "hub-install": "smartthings edge:drivers:install $(npm run --silent driver:id) --channel 912e7705-ec88-413c-a3ac-1c5ecd9015ba",
-    "link": "echo 'Link: https://callaway.smartthings.com/channels/912e7705-ec88-413c-a3ac-1c5ecd9015ba'",
-    "test": "npm run check:lua && lua run-tests.lua all",
-    "test:unit": "npm run check:lua && lua run-tests.lua unit",
-    "test:integration": "npm run check:lua && lua run-tests.lua integration",
-    "test:on": "npm run check:lua && lua test.lua on $IP",
-    "test:off": "npm run check:lua && lua test.lua off $IP",
-    "test:get": "npm run check:lua && lua test.lua get $IP",
-    "test:bright": "npm run check:lua && lua test.lua brightness $IP $LEVEL",
-    "test:color": "npm run check:lua && lua test.lua color $IP $HUE $SAT $VAL",
-    "test:rgb": "npm run check:lua && lua test.lua rgb $IP $RED $GREEN $BLUE",
-    "version": "npm run version:bump && npm run version:tag",
-    "version:bump": "node scripts/bump.js",
-    "version:tag": "git add . && git commit -m \"chore(release): v$npm_package_version\" && git tag v$npm_package_version && git push && git push --tags"
-  },
-  "devDependencies": {
-    "js-yaml": "^4.1.0"
+    "test": "lua run-tests.lua"
   }
 }

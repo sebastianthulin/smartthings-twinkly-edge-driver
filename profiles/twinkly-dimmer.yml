@@ -1,10 +1,12 @@
-name: twinkly-switch
+name: twinkly-dimmer
 components:
   - id: main
     capabilities:
       - id: switch
         version: 1
         default: true
+      - id: switchLevel
+        version: 1
       - id: refresh
         version: 1
     categories:
@@ -22,19 +24,19 @@ preferences:
       minLength: 0
       maxLength: 64
   - name: ipAddress
-    title: "Device IP Address"
-    description: "Enter the local IP of your Twinkly light (e.g. 192.168.1.50)"
+    title: Device IP Address
+    description: Optional manual IP override; leave at 0.0.0.0 for discovery
     required: false
     preferenceType: string
     definition:
       stringType: text
-      default: "0.0.0.0"
+      default: 0.0.0.0
       pattern: "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"
       minLength: 7
       maxLength: 15
   - name: pollInterval
-    title: "Polling Interval (seconds)"
-    description: "Set the polling interval in seconds"
+    title: Polling Interval (seconds)
+    description: How often to read the device state
     required: false
     preferenceType: integer
     definition:

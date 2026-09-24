@@ -1,613 +1,409 @@
 local Driver = require "st.driver"
 local caps = require "st.capabilities"
-local json = require "dkjson"
-local twinkly = require "twinkly"
-local login = require "twinkly.login"
-local socket = require "socket"
-local config = require "twinkly.config"
+local api = require "twinkly.api"
+local discovery = require "twinkly.discovery"
+local scenes = require "twinkly.scenes"
+local log = require "log"
 
--- Custom capability definition for Twinkly Effects
-local effects_capability_definition = {
-  id = "sebastianthulin44463.twinklyEffects",
-  version = 1,
-  commands = {
-    listEffects = {
-      name = "listEffects",
-      arguments = {}
-    },
-    setEffect = {
-      name = "setEffect", 
-      arguments = {
-        {
-          name = "effectId",
-          optional = false,
-          type = "STRING"
-        }
-      }
-    }
-  },
-  attributes = {
-    availableEffects = {
-      schema = {
-        type = "object",
-        properties = {
-          effects = {
-            type = "array",
-            items = {
-              type = "object",
-              properties = {
-                id = { type = "string" },
-                name = { type = "string" },
-                type = { type = "string" }
-              }
-            }
-          }
-        }
-      }
-    },
-    currentEffect = {
-      schema = {
-        type = "object",
-        properties = {
-          id = { type = "string" },
-          name = { type = "string" }
-        }
-      }
-    }
-  }
-}
+local MODE = "/xled/v1/led/mode"
+local BRIGHTNESS = "/xled/v1/led/out/brightness"
+local COLOR = "/xled/v1/led/color"
+local POLL_INTERVAL = 60
+local REDISCOVERY_INTERVAL = 30
+local COLOR_DELAY = 0.15
+local LEVEL_DELAY = 0.12
 
--- Register the custom capability
-local effects_cap = caps.build_cap_from_json_string(json.encode(effects_capability_definition))
-
-local ok, log = pcall(require, "log")
-if not ok then
-  log = {
-    debug = function(...) print("[DEBUG]", ...) end,
-    info  = function(...) print("[INFO]", ...) end,
-    warn  = function(...) print("[WARN]", ...) end,
-    error = function(...) print("[ERROR]", ...) end,
-  }
+local function finite_number(value)
+  return type(value) == "number" and value == value and
+    value ~= math.huge and value ~= -math.huge
 end
 
-local schedule_poll
+local function valid_ip(ip)
+  if type(ip) ~= "string" then return false end
+  local a, b, c, d = ip:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+  if not a then return false end
+  for _, part in ipairs({ a, b, c, d }) do
+    if tonumber(part) > 255 then return false end
+  end
+  return ip ~= "0.0.0.0"
+end
 
+local function auto_ip(ip)
+  return ip == nil or ip == "" or ip == "0.0.0.0"
+end
 
-
------------------------------------------------------------
--- Resolve IP helper
------------------------------------------------------------
-local function resolve_ip(device)
+local function ip_for(device)
   local ip = device:get_field("ipAddress")
-  if not ip or ip == "" then
-    ip = device.preferences.ipAddress
-  end
-  if not ip or ip == "" then
-    log.warn("No IP address configured for device " .. (device.label or device.id))
-    return nil
-  end
-  return ip
+  local pref = device.preferences and device.preferences.ipAddress
+  -- A configured preference is an explicit manual address override.
+  if valid_ip(pref) then ip = pref end
+  if valid_ip(ip) then return ip end
+  if valid_ip(pref) then return pref end
+  return nil
 end
 
------------------------------------------------------------
--- Polling suspension helper
------------------------------------------------------------
-local function suspend_polling_during_operation(driver, device, operation_func)
-  -- Temporarily suspend polling to avoid interference during device operations
-  local poll_timer = device:get_field("poll_timer")
-  if poll_timer then
-    driver:cancel_timer(poll_timer)
-    device:set_field("poll_timer", nil)
-  end
-
-  -- Execute the device operation
-  local result = operation_func()
-
-  -- Resume polling after a brief delay to allow operation to complete
-  driver:call_with_delay(config.timing.polling_resume_delay, function()
-    schedule_poll(driver, device)
-  end)
-
-  return result
+local function invoke(device, path, method, payload)
+  local ip = ip_for(device)
+  if not ip then log.warn("Twinkly has no IP address: " .. tostring(device.id)); return nil end
+  local result, err = api.call(ip, path, method, payload)
+  if not result then log.warn("Twinkly " .. path .. " failed: " .. tostring(err)) end
+  return result, err
 end
 
------------------------------------------------------------
--- SWITCH HANDLERS
------------------------------------------------------------
-local function switch_on(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("ON -> " .. tostring(ip or "?"))
-  if ip then
-    -- Check if we have a last effect to restore
-    local last_effect = device:get_field("last_effect_id")
-    
-    if last_effect then
-      log.info("Restoring last effect: " .. tostring(last_effect))
-      local ok, result = pcall(twinkly.set_effect, ip, last_effect)
-      if ok then
-        log.info("Restored last effect successfully: " .. tostring(result))
-        device:emit_event(caps.switch.switch.on())
-        -- Update current effect status
-        local effect_info = twinkly.get_effect(ip)
-        if effect_info then
-          device:emit_event(effects_cap.currentEffect(effect_info))
-        end
-      else
-        log.warn("Failed to restore last effect, using default mode: " .. tostring(result))
-        -- Fallback to regular movie mode
-        local ok2, result2 = pcall(twinkly.set_mode, ip, "movie")
-        if ok2 then
-          device:emit_event(caps.switch.switch.on())
-        else
-          log.error("set_mode threw error: " .. tostring(result2))
-        end
+local function remember_mode(device, mode)
+  if mode ~= "movie" and mode ~= "demo" and mode ~= "color" and mode ~= "effect" then return end
+  if device:get_field("last_on_mode") ~= mode then
+    device:set_field("last_on_mode", mode, { persist = true })
+  end
+end
+
+local function refresh(driver, device)
+  local old_ip = ip_for(device)
+  local mode = invoke(device, MODE)
+  if not mode and driver and not valid_ip(device.preferences and device.preferences.ipAddress) then
+    local now = os.time()
+    local previous = device:get_field("last_rediscovery")
+    if not previous or now < previous or now - previous >= REDISCOVERY_INTERVAL then
+      device:set_field("last_rediscovery", now)
+      local scanned, err = discovery.scan(driver, false)
+      if not scanned then log.warn("Twinkly rediscovery failed: " .. tostring(err)) end
+      if ip_for(device) ~= old_ip then mode = invoke(device, MODE) end
+    end
+  end
+  if not mode or type(mode.mode) ~= "string" then return end
+  if mode.mode ~= "color" and not device:get_field("color_busy") and
+    not device:get_field("queued_color") then
+    device:set_field("desired_color", nil)
+  end
+  remember_mode(device, mode.mode)
+  if mode.mode == "demo" or mode.mode == "effect" or mode.mode == "movie" then
+    local scene = scenes.current(function(path, method, payload)
+      return invoke(device, path, method, payload)
+    end, mode.mode)
+    if scene and device:get_field("last_scene") ~= scene then
+      device:set_field("last_scene", scene, { persist = true })
+    end
+  elseif mode.mode == "color" and device:get_field("last_scene") then
+    device:set_field("last_scene", nil, { persist = true })
+  end
+  device:emit_event(mode.mode == "off" and caps.switch.switch.off() or caps.switch.switch.on())
+  if device.profile.name == "twinkly-color-light" or device.profile.name == "twinkly-dimmer" then
+    local brightness
+    if not device:get_field("level_busy") and not device:get_field("queued_level") then
+      brightness = invoke(device, BRIGHTNESS)
+    end
+    if brightness then
+      local level = brightness.mode == "disabled" and 100 or brightness.value
+      if finite_number(level) then
+        device:emit_event(caps.switchLevel.level(math.floor(math.max(0, math.min(100, level)) + 0.5)))
       end
-    else
-      -- No last effect, just turn on in movie mode
-      local ok, result = pcall(twinkly.set_mode, ip, "movie")
-      if ok then
-        log.info("set_mode returned OK: " .. tostring(result))
-        device:emit_event(caps.switch.switch.on())
-      else
-        log.error("set_mode threw error: " .. tostring(result))
+    end
+    if device.profile.name == "twinkly-color-light" and mode.mode == "color" and
+      not device:get_field("color_busy") and not device:get_field("queued_color") then
+      local color = invoke(device, COLOR)
+      if color and finite_number(color.hue) and finite_number(color.saturation) then
+        local hue = math.floor(math.max(0, math.min(359, color.hue)) / 3.6 + 0.5)
+        local saturation = math.floor(math.max(0, math.min(255, color.saturation)) / 2.55 + 0.5)
+        if not device:get_field("color_busy") and not device:get_field("queued_color") then
+          device:set_field("desired_color", { hue = hue, saturation = saturation })
+        end
+        device:emit_event(caps.colorControl.hue(hue))
+        device:emit_event(caps.colorControl.saturation(saturation))
       end
     end
   end
+  return true
 end
 
-local function switch_off(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("OFF -> " .. tostring(ip or "?"))
-  if ip then
-    local ok, result = pcall(twinkly.set_mode, ip, "off")
-    if ok then
-      log.info("set_mode returned OK: " .. tostring(result))
-      device:emit_event(caps.switch.switch.off())
-    else
-      log.error("set_mode threw error: " .. tostring(result))
+local function set_mode(_, device, mode)
+  local result = invoke(device, MODE, "POST", { mode = mode })
+  if result then device:emit_event(mode == "off" and caps.switch.switch.off() or caps.switch.switch.on()) end
+end
+
+local function cancel_color(driver, device)
+  local timer = device:get_field("color_timer")
+  if timer then driver:cancel_timer(timer) end
+  device:set_field("color_timer", nil)
+  device:set_field("queued_color", nil)
+  device:set_field("desired_color", nil)
+  device:set_field("color_generation", (device:get_field("color_generation") or 0) + 1)
+end
+
+local function cancel_level(driver, device)
+  local timer = device:get_field("level_timer")
+  if timer then driver:cancel_timer(timer) end
+  device:set_field("level_timer", nil)
+  device:set_field("queued_level", nil)
+  device:set_field("level_generation", (device:get_field("level_generation") or 0) + 1)
+end
+
+local function activate_scene(driver, device, scene)
+  local result, canonical_or_error, failure_kind = scenes.activate(function(path, method, payload)
+    return invoke(device, path, method, payload)
+  end, scene)
+  if not result then
+    log.warn("Twinkly scene " .. tostring(scene) .. " failed: " .. tostring(canonical_or_error))
+    if failure_kind == "uncertain" then refresh(driver, device) end
+    if (failure_kind == "invalid" or failure_kind == "unavailable") and
+      device:get_field("pending_scene") == scene then
+      device:set_field("pending_scene", nil, { persist = true })
     end
+    return false, failure_kind
+  end
+  if device:get_field("last_scene") ~= canonical_or_error then
+    device:set_field("last_scene", canonical_or_error, { persist = true })
+  end
+  remember_mode(device, scene:match("^[^:@]+"))
+  if device:get_field("pending_scene") == scene then
+    device:set_field("pending_scene", nil, { persist = true })
+  end
+  device:emit_event(caps.switch.switch.on())
+  return true
+end
+
+local function poll(driver, device)
+  if refresh(driver, device) then
+    local pending = device:get_field("pending_scene")
+    if pending then activate_scene(driver, device, pending) end
   end
 end
 
------------------------------------------------------------
--- REFRESH HANDLER
------------------------------------------------------------
-local function handle_refresh(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("REFRESH -> " .. tostring(ip or "?"))
-  if not ip then return end
+local function on(driver, device)
+  cancel_color(driver, device)
+  cancel_level(driver, device)
+  local pending = device:get_field("pending_scene")
+  if pending then
+    local ok, failure_kind = activate_scene(driver, device, pending)
+    if ok or failure_kind == "retry" or failure_kind == "uncertain" then return ok end
+  end
+  local scene = device:get_field("last_scene")
+  if scene then
+    local ok, failure_kind = activate_scene(driver, device, scene)
+    if not ok and failure_kind == "unavailable" then
+      return activate_scene(driver, device, "demo")
+    end
+    return ok
+  end
+  local previous = device:get_field("last_on_mode") or "demo"
+  if previous ~= "color" and previous ~= "demo" then previous = "demo" end
+  local result = invoke(device, MODE, "POST", { mode = previous })
+  if result then
+    remember_mode(device, previous)
+    device:emit_event(caps.switch.switch.on())
+  end
+  return result ~= nil
+end
 
-  -- Always ensure we have a valid token before manual refresh
-  local token, err = login.ensure_token(ip)
-  if not token then
-    log.warn(string.format("[refresh] Could not login for %s: %s", ip, tostring(err)))
+local function off(driver, device)
+  cancel_color(driver, device)
+  cancel_level(driver, device)
+  device:set_field("pending_scene", nil, { persist = true })
+  set_mode(driver, device, "off")
+end
+
+local flush_level
+local function schedule_level(driver, device)
+  local timer
+  timer = driver:call_with_delay(LEVEL_DELAY, function()
+    if device:get_field("level_timer") ~= timer then return end
+    device:set_field("level_timer", nil)
+    flush_level(driver, device)
+  end, "twinkly-level-" .. tostring(device.id))
+  device:set_field("level_timer", timer)
+end
+
+flush_level = function(driver, device)
+  if device:get_field("level_busy") then return end
+  local value = device:get_field("queued_level")
+  if not value then return end
+  device:set_field("queued_level", nil)
+  device:set_field("level_busy", true)
+  local generation = device:get_field("level_generation")
+  local result = invoke(device, BRIGHTNESS, "POST", { mode = "enabled", type = "A", value = value })
+  if result and device:get_field("level_generation") == generation then
+    device:emit_event(caps.switchLevel.level(value))
+  end
+  device:set_field("level_busy", nil)
+  if device:get_field("level_generation") == generation or device:get_field("queued_level") then
+    schedule_level(driver, device)
+  end
+end
+
+local function level(driver, device, command)
+  local value = command.args and tonumber(command.args.level)
+  if not finite_number(value) then return end
+  value = math.max(0, math.min(100, math.floor(value + 0.5)))
+  if value == 0 then
+    off(driver, device)
     return
   end
+  if device:get_latest_state("main", caps.switch.ID, caps.switch.switch.NAME) ~= "on" then
+    if not on(driver, device) then return end
+  end
+  device:set_field("queued_level", value)
+  device:set_field("level_generation", (device:get_field("level_generation") or 0) + 1)
+  if device:get_field("level_busy") or device:get_field("level_timer") then return end
+  flush_level(driver, device)
+end
 
-  local ok, mode_or_err = pcall(twinkly.get_mode, ip)
-  if ok and mode_or_err then
-    local raw = mode_or_err
-    if raw ~= "off" then
+local flush_color
+local function schedule_color(driver, device)
+  local timer
+  timer = driver:call_with_delay(COLOR_DELAY, function()
+    if device:get_field("color_timer") ~= timer then return end
+    device:set_field("color_timer", nil)
+    flush_color(driver, device)
+  end, "twinkly-color-" .. tostring(device.id))
+  device:set_field("color_timer", timer)
+end
+
+flush_color = function(driver, device)
+  if device:get_field("color_busy") then return end
+  local value = device:get_field("queued_color")
+  if not value then return end
+  device:set_field("queued_color", nil)
+  device:set_field("color_busy", true)
+  local generation = device:get_field("color_generation")
+  local changed = invoke(device, COLOR, "POST", {
+    hue = math.min(359, math.floor(value.hue * 3.6 + 0.5)),
+    saturation = math.floor(value.saturation * 2.55 + 0.5),
+    value = 255,
+  })
+  local confirmed = false
+  if changed and device:get_field("color_generation") == generation then
+    local mode = invoke(device, MODE, "POST", { mode = "color" })
+    if mode and device:get_field("color_generation") == generation then
+      confirmed = true
+      remember_mode(device, "color")
+      device:set_field("last_scene", nil, { persist = true })
+      device:set_field("pending_scene", nil, { persist = true })
+      device:emit_event(caps.colorControl.hue(value.hue))
+      device:emit_event(caps.colorControl.saturation(value.saturation))
       device:emit_event(caps.switch.switch.on())
-    else
-      device:emit_event(caps.switch.switch.off())
     end
-  else
-    log.warn("Failed to refresh " .. tostring(ip) .. ": " .. tostring(mode_or_err))
   end
-
-  -- Refresh brightness & color
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    local ok_b, brightness = pcall(twinkly.get_brightness, ip)
-    if ok_b and brightness then
-      local level = math.floor((brightness / 255) * 100)
-      device:emit_event(caps.switchLevel.level(level))
-    end
-
-    local ok_c, color = pcall(twinkly.get_color, ip)
-    if ok_c and color and color.red then
-      local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-      local max, min = math.max(r, g, b), math.min(r, g, b)
-      local delta = max - min
-      local h, s, v = 0, 0, max
-
-      if delta > 0 then
-        s = delta / max
-        if max == r then
-          h = ((g - b) / delta) % 6
-        elseif max == g then
-          h = (b - r) / delta + 2
-        else
-          h = (r - g) / delta + 4
-        end
-        h = h * 60
-      end
-
-      device:emit_event(caps.colorControl.hue(math.floor((h / 360) * 100)))
-      device:emit_event(caps.colorControl.saturation(math.floor(s * 100)))
-    end
+  device:set_field("color_busy", nil)
+  if not confirmed and device:get_field("color_generation") == generation and
+    not device:get_field("queued_color") then
+    device:set_field("desired_color", nil)
+  end
+  if device:get_field("color_generation") == generation or device:get_field("queued_color") then
+    schedule_color(driver, device)
   end
 end
 
------------------------------------------------------------
--- BRIGHTNESS
------------------------------------------------------------
-local function set_level(driver, device, command)
-  local ip = resolve_ip(device)
-  local level = command.args.level
-  log.info(string.format("SET_LEVEL -> %s level=%d", tostring(ip or "?"), level))
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local ok, result = pcall(twinkly.set_brightness, ip, level)
-      if ok then
-        device:emit_event(caps.switchLevel.level(level))
-      else
-        log.error("set_brightness failed: " .. tostring(result))
-      end
-    end)
-  end
-end
-
------------------------------------------------------------
--- COLOR CONTROL
------------------------------------------------------------
-local function set_color(driver, device, command)
-  local ip = resolve_ip(device)
-  local hue = command.args.color.hue or 0
-  local sat = command.args.color.saturation or 0
-  log.info(string.format("SET_COLOR -> %s hue=%d sat=%d", tostring(ip or "?"), hue, sat))
-
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-      if ok then
-        device:emit_event(caps.colorControl.hue(hue))
-        device:emit_event(caps.colorControl.saturation(sat))
-      else
-        log.error("set_color_hsv failed: " .. tostring(result))
-      end
-    end)
-  end
+local function color(driver, device, command)
+  local value = command.args and command.args.color or {}
+  if type(value) ~= "table" then return end
+  local hue, saturation = tonumber(value.hue), tonumber(value.saturation)
+  if not finite_number(hue) or not finite_number(saturation) then return end
+  hue = math.max(0, math.min(100, hue))
+  saturation = math.max(0, math.min(100, saturation))
+  local desired = { hue = hue, saturation = saturation }
+  device:set_field("desired_color", desired)
+  device:set_field("queued_color", desired)
+  device:set_field("color_generation", (device:get_field("color_generation") or 0) + 1)
+  if device:get_field("color_busy") or device:get_field("color_timer") then return end
+  flush_color(driver, device)
 end
 
 local function set_hue(driver, device, command)
-  local ip = resolve_ip(device)
-  local hue = command.args.hue
-  log.info(string.format("SET_HUE -> %s hue=%d", tostring(ip or "?"), hue))
-
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local sat = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.saturation.NAME) or 100
-      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-      if ok then
-        device:emit_event(caps.colorControl.hue(hue))
-      else
-        log.error("set_color_hsv failed: " .. tostring(result))
-      end
-    end)
-  end
+  local desired = device:get_field("desired_color")
+  local saturation = desired and desired.saturation or device:get_latest_state("main", caps.colorControl.ID,
+    caps.colorControl.saturation.NAME) or 100
+  color(driver, device, { args = { color = { hue = command.args and command.args.hue,
+    saturation = saturation } } })
 end
 
 local function set_saturation(driver, device, command)
-  local ip = resolve_ip(device)
-  local sat = command.args.saturation
-  log.info(string.format("SET_SAT -> %s sat=%d", tostring(ip or "?"), sat))
-
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local hue = device:get_latest_state("main", caps.colorControl.ID, caps.colorControl.hue.NAME) or 0
-      local bright = device:get_latest_state("main", caps.switchLevel.ID, caps.switchLevel.level.NAME) or 100
-      local ok, result = pcall(twinkly.set_color_hsv, ip, hue, sat, bright)
-      if ok then
-        device:emit_event(caps.colorControl.saturation(sat))
-      else
-        log.error("set_color_hsv failed: " .. tostring(result))
-      end
-    end)
-  end
+  local desired = device:get_field("desired_color")
+  local hue = desired and desired.hue or device:get_latest_state("main", caps.colorControl.ID,
+    caps.colorControl.hue.NAME) or 0
+  color(driver, device, { args = { color = { hue = hue,
+    saturation = command.args and command.args.saturation } } })
 end
 
------------------------------------------------------------
--- EFFECTS CONTROL  
------------------------------------------------------------
-local function list_effects(driver, device, command)
-  local ip = resolve_ip(device)
-  log.info("LIST_EFFECTS -> " .. tostring(ip or "?"))
-  
-  if ip then
-    suspend_polling_during_operation(driver, device, function()
-      local effects = twinkly.list_effects(ip, "all")
-      if effects then
-        log.info("Found " .. #effects .. " effects")
-        device:emit_event(effects_cap.availableEffects({ effects = effects }))
-      else
-        log.error("Failed to list effects")
-      end
-    end)
-  end
+local function schedule(driver, device)
+  local timer = device:get_field("poll_timer")
+  if timer then driver:cancel_timer(timer) end
+  local interval = tonumber(device.preferences and device.preferences.pollInterval)
+  if not finite_number(interval) then interval = POLL_INTERVAL end
+  interval = math.floor(math.max(30, math.min(3600, interval)))
+  timer = driver:call_on_schedule(interval, function()
+    poll(driver, device)
+  end, "twinkly-poll-" .. tostring(device.id))
+  device:set_field("poll_timer", timer)
 end
 
-local function set_effect(driver, device, command)
-  local ip = resolve_ip(device)
-  local effect_id = command.args.effectId
-  log.info(string.format("SET_EFFECT -> %s effect=%s", tostring(ip or "?"), tostring(effect_id)))
-  
-  if ip and effect_id then
-    suspend_polling_during_operation(driver, device, function()
-      local ok, result = pcall(twinkly.set_effect, ip, effect_id)
-      if ok then
-        log.info("Effect set successfully: " .. tostring(result))
-        device:emit_event(caps.switch.switch.on())
-        -- Store the current effect for later retrieval
-        device:set_field("last_effect_id", effect_id, { persist = true })
-        
-        -- Try to get effect name for display
-        local effect_info = twinkly.get_effect(ip)
-        if effect_info then
-          device:emit_event(effects_cap.currentEffect(effect_info))
-        else
-          device:emit_event(effects_cap.currentEffect({ id = effect_id, name = "Effect " .. effect_id }))
-        end
-      else
-        log.error("Failed to set effect: " .. tostring(result))
-      end
-    end)
-  end
-end
-
------------------------------------------------------------
--- POLLING
------------------------------------------------------------
-local function poll_state(driver, device)
-  local ip = resolve_ip(device)
-  if not ip then return end
-  log.debug(string.format("[poll] Polling %s (%s)", device.label or device.id, ip))
-
-  -- Ensure valid token before poll
-  local token, err = login.ensure_token(ip)
-  if not token then
-    log.warn(string.format("[poll] Could not ensure token for %s: %s", ip, tostring(err)))
-    return
-  end
-
-  -- Try fetching mode (includes color_config sometimes)
-  local ok, mode_data = pcall(twinkly.get_mode, ip)
-  if not ok or not mode_data then
-    log.warn(string.format("[poll] Failed to get mode for %s: %s — retrying once", ip, tostring(mode_data)))
-    if socket and socket.sleep then socket.sleep(config.timing.poll_failure_delay) end
-    login.clear_token(ip)
-    local retry_token = login.ensure_token(ip)
-    if retry_token then
-      ok, mode_data = pcall(twinkly.get_mode, ip)
-    else
-      return
-    end
-  end
-
-  if not ok or not mode_data then
-    log.warn(string.format("[poll] Giving up for %s after retry", ip))
-    return
-  end
-
-  local mode = mode_data.mode or mode_data
-  log.debug(string.format("[poll] Current mode for %s: %s", ip, tostring(mode)))
-  device:emit_event(mode ~= "off" and caps.switch.switch.on() or caps.switch.switch.off())
-
-  -- Poll brightness & color if light is active
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") and mode ~= "off" then
-    local color_cfg = mode_data.color_config
-    local new_hue, new_sat, new_brightness
-
-    if color_cfg then
-      -- 🎨 Use color_config directly
-      local r = color_cfg.red or 0
-      local g = color_cfg.green or 0
-      local b = color_cfg.blue or 0
-      local v = color_cfg.value or 255
-      local s = color_cfg.saturation or 255
-      local h = color_cfg.hue or 0
-
-      new_brightness = math.floor((v / 255) * 100)
-      new_hue = math.floor((h / 360) * 100)
-      new_sat = math.floor((s / 255) * 100)
-
-      log.debug(string.format(
-        "[poll] Using color_config -> R=%d G=%d B=%d | H=%d S=%d V=%d",
-        r, g, b, new_hue, new_sat, new_brightness
-      ))
-    else
-      -- 🕹️ Fallback: old endpoints
-      local ok_b, brightness = pcall(twinkly.get_brightness, ip)
-      if ok_b and brightness then
-        new_brightness = math.floor((brightness / 255) * 100)
-      end
-
-      local ok_c, color = pcall(twinkly.get_color, ip)
-      if ok_c and color and color.red then
-        local r, g, b = color.red / 255, color.green / 255, color.blue / 255
-        local max, min = math.max(r, g, b), math.min(r, g, b)
-        local delta = max - min
-        local h, s, v = 0, 0, max
-        if delta > 0 then
-          s = delta / max
-          if max == r then
-            h = ((g - b) / delta) % 6
-          elseif max == g then
-            h = (b - r) / delta + 2
-          else
-            h = (r - g) / delta + 4
-          end
-          h = h * 60
-        end
-        new_hue = math.floor((h / 360) * 100)
-        new_sat = math.floor(s * 100)
-      end
-    end
-
-    -- 🧠 Smart event deduplication
-    local prev_state = device:get_field("last_state") or {}
-    local changed = false
-
-    if new_brightness and new_brightness ~= prev_state.brightness then
-      device:emit_event(caps.switchLevel.level(new_brightness))
-      prev_state.brightness = new_brightness
-      changed = true
-    end
-
-    if new_hue and new_hue ~= prev_state.hue then
-      device:emit_event(caps.colorControl.hue(new_hue))
-      prev_state.hue = new_hue
-      changed = true
-    end
-
-    if new_sat and new_sat ~= prev_state.sat then
-      device:emit_event(caps.colorControl.saturation(new_sat))
-      prev_state.sat = new_sat
-      changed = true
-    end
-
-    if changed then
-      log.debug(string.format(
-        "[poll] Updated color state → hue=%s sat=%s bright=%s",
-        tostring(new_hue), tostring(new_sat), tostring(new_brightness)
-      ))
-      device:set_field("last_state", prev_state, { persist = false })
-    else
-      log.debug("[poll] No change detected — skipping redundant events")
-    end
-  end
-end
-
------------------------------------------------------------
--- LIFECYCLE HANDLERS
------------------------------------------------------------
-local function device_init(driver, device)
-  device:emit_event(caps.switch.switch.off())
-
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
-
-  local existing = device:get_field("poll_timer")
-  if existing then
-    driver:cancel_timer(existing)
-    device:set_field("poll_timer", nil)
-  end
-
-  log.info(string.format("Starting polling loop for %s", device.label or device.id))
-  poll_state(driver, device)
-  schedule_poll(driver, device)
-end
-
-local function device_added(driver, device)
-  log.info("Device added: " .. (device.device_network_id or "unknown"))
-  device:emit_event(caps.switch.switch.off())
-
-  if device.profile.name and device.profile.name:match("twinkly%-color%-light") then
-    device:emit_event(caps.switchLevel.level(100))
-    device:emit_event(caps.colorControl.hue(0))
-    device:emit_event(caps.colorControl.saturation(100))
-  end
-
+local function init(driver, device)
   if not device:get_field("ipAddress") then
-    device:set_field("ipAddress", "", { persist = true })
+    local discovered_ip = discovery.pending_ip(device.device_network_id)
+    if discovered_ip then device:set_field("ipAddress", discovered_ip, { persist = true }) end
   end
-  if not device:get_field("pollInterval") then
-    device:set_field("pollInterval", config.timing.default_poll_interval, { persist = true })
-  end
-
-  log.info("Placeholder Twinkly device created. Please set the IP address in preferences.")
+  poll(driver, device)
+  schedule(driver, device)
 end
 
-local function device_info_changed(driver, device)
-  local pref_ip = device.preferences and device.preferences.ipAddress
-  if pref_ip and pref_ip ~= "" then
-    device:set_field("ipAddress", pref_ip, { persist = true })
+local function info_changed(driver, device, _, args)
+  local old_preferences = args and args.old_st_store and args.old_st_store.preferences or {}
+  local preferences = device.preferences or {}
+  local network_changed = old_preferences.ipAddress ~= preferences.ipAddress or
+    old_preferences.pollInterval ~= preferences.pollInterval
+  local scene_changed = old_preferences.scene ~= preferences.scene
+  if not network_changed and not scene_changed then return end
+  if scene_changed then
+    cancel_color(driver, device)
+    cancel_level(driver, device)
+    local pending = preferences.scene
+    if pending == "" then pending = nil end
+    device:set_field("pending_scene", pending, { persist = true })
   end
-  local pref_poll = device.preferences and device.preferences.pollInterval
-  if pref_poll and tonumber(pref_poll) then
-    device:set_field("pollInterval", tonumber(pref_poll), { persist = true })
+  local old_ip = device:get_field("ipAddress")
+  if old_preferences.ipAddress ~= preferences.ipAddress then
+    device:set_field("last_rediscovery", nil)
   end
-  device_init(driver, device)
+  if valid_ip(old_preferences.ipAddress) and auto_ip(preferences.ipAddress) and
+    old_ip == old_preferences.ipAddress then
+    device:set_field("ipAddress", nil, { persist = true })
+  end
+  local ip = ip_for(device)
+  if old_ip and old_ip ~= ip then api.clear(old_ip) end
+  if ip and ip ~= old_ip then device:set_field("ipAddress", ip, { persist = true }); api.clear(ip) end
+  if ip ~= old_ip then poll(driver, device) end
+  if network_changed then schedule(driver, device) end
+  if scene_changed and preferences.scene and preferences.scene ~= "" and
+    device:get_field("pending_scene") == preferences.scene then
+    activate_scene(driver, device, preferences.scene)
+  end
 end
 
------------------------------------------------------------
--- DISCOVERY
------------------------------------------------------------
-local function discovery(driver, opts, cons)
-  log.info("Twinkly discovery triggered...")
-
-  for _, dev in pairs(driver:get_devices()) do
-    local ip = dev:get_field("ipAddress")
-    if not ip or ip == "" then
-      log.info("Unconfigured placeholder exists (" .. dev.device_network_id .. "), skipping new one")
-      return
-    end
-  end
-
-  local placeholder_id = "twinkly-" .. tostring(os.time())
-  driver:try_create_device({
-    type = "LAN",
-    device_network_id = placeholder_id,
-    label = "Twinkly Color Light (" .. placeholder_id .. ")",
-    profile = "twinkly-color-light",
-    manufacturer = "Twinkly",
-    model = "LED",
-  })
-  log.info("Created new Twinkly placeholder: " .. placeholder_id)
+local function removed(driver, device)
+  cancel_color(driver, device)
+  cancel_level(driver, device)
+  local timer = device:get_field("poll_timer")
+  if timer then driver:cancel_timer(timer) end
+  device:set_field("poll_timer", nil)
+  local ip = ip_for(device)
+  if ip then api.clear(ip) end
 end
 
------------------------------------------------------------
--- SCHEDULE POLLING
------------------------------------------------------------
-function schedule_poll(driver, device)
-  local interval = tonumber(device:get_field("pollInterval")) or config.timing.default_poll_interval
-  if interval < config.timing.min_poll_interval then interval = config.timing.default_poll_interval end
-
-  local timer = driver:call_with_delay(interval, function()
-    poll_state(driver, device)
-    schedule_poll(driver, device) -- reschedule continuously
-  end)
-
-  device:set_field("poll_timer", timer, { persist = false })
-  log.debug(string.format("[schedule_poll] Scheduled polling every %d seconds for %s", interval, device.label or device.id))
-end
-
------------------------------------------------------------
--- DRIVER DEFINITION
------------------------------------------------------------
-local twinkly_driver = Driver("twinkly", {
-  discovery = discovery,
-  lifecycle_handlers = {
-    init = device_init,
-    added = device_added,
-    infoChanged = device_info_changed
-  },
+Driver("twinkly", {
+  discovery = function(driver)
+    local ok, err = discovery.scan(driver)
+    if not ok then log.warn("Twinkly discovery failed: " .. tostring(err)) end
+  end,
+  lifecycle_handlers = { init = init, infoChanged = info_changed, removed = removed },
   capability_handlers = {
     [caps.switch.ID] = {
-      [caps.switch.commands.on.NAME] = switch_on,
-      [caps.switch.commands.off.NAME] = switch_off,
+      [caps.switch.commands.on.NAME] = on,
+      [caps.switch.commands.off.NAME] = off,
     },
-    [caps.switchLevel.ID] = {
-      [caps.switchLevel.commands.setLevel.NAME] = set_level,
-    },
+    [caps.switchLevel.ID] = { [caps.switchLevel.commands.setLevel.NAME] = level },
     [caps.colorControl.ID] = {
-      [caps.colorControl.commands.setColor.NAME] = set_color,
+      [caps.colorControl.commands.setColor.NAME] = color,
       [caps.colorControl.commands.setHue.NAME] = set_hue,
       [caps.colorControl.commands.setSaturation.NAME] = set_saturation,
     },
-    [caps.refresh.ID] = {
-      [caps.refresh.commands.refresh.NAME] = handle_refresh,
-    },
-    [effects_cap.ID] = {
-      [effects_cap.commands.listEffects.NAME] = list_effects,
-      [effects_cap.commands.setEffect.NAME] = set_effect,
-    }
-  }
-})
-
-twinkly_driver:run()
+    [caps.refresh.ID] = { [caps.refresh.commands.refresh.NAME] = poll },
+  },
+}):run()
