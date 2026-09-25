@@ -1,0 +1,282 @@
+{
+  "dashboard": {
+    "states": [],
+    "actions": [],
+    "basicPlus": []
+  },
+  "detailView": [
+    {
+      "label": "Effect",
+      "displayType": "list",
+      "list": {
+        "command": {
+          "name": "setEffect",
+          "alternatives": [
+            {
+              "key": "movie:0",
+              "value": "Custom Effect 1"
+            },
+            {
+              "key": "movie:1",
+              "value": "Custom Effect 2"
+            },
+            {
+              "key": "movie:2",
+              "value": "Custom Effect 3"
+            },
+            {
+              "key": "movie:3",
+              "value": "Custom Effect 4"
+            },
+            {
+              "key": "movie:4",
+              "value": "Custom Effect 5"
+            },
+            {
+              "key": "movie:5",
+              "value": "Custom Effect 6"
+            },
+            {
+              "key": "movie:6",
+              "value": "Custom Effect 7"
+            },
+            {
+              "key": "movie:7",
+              "value": "Custom Effect 8"
+            },
+            {
+              "key": "movie:8",
+              "value": "Custom Effect 9"
+            },
+            {
+              "key": "movie:9",
+              "value": "Custom Effect 10"
+            },
+            {
+              "key": "movie:10",
+              "value": "Custom Effect 11"
+            },
+            {
+              "key": "movie:11",
+              "value": "Custom Effect 12"
+            },
+            {
+              "key": "movie:12",
+              "value": "Custom Effect 13"
+            },
+            {
+              "key": "movie:13",
+              "value": "Custom Effect 14"
+            },
+            {
+              "key": "movie:14",
+              "value": "Custom Effect 15"
+            },
+            {
+              "key": "movie:15",
+              "value": "Custom Effect 16"
+            },
+            {
+              "key": "effect:0",
+              "value": "Built-in Effect 1"
+            },
+            {
+              "key": "effect:1",
+              "value": "Built-in Effect 2"
+            },
+            {
+              "key": "effect:2",
+              "value": "Built-in Effect 3"
+            },
+            {
+              "key": "effect:3",
+              "value": "Built-in Effect 4"
+            },
+            {
+              "key": "effect:4",
+              "value": "Built-in Effect 5"
+            },
+            {
+              "key": "effect:5",
+              "value": "Built-in Effect 6"
+            },
+            {
+              "key": "effect:6",
+              "value": "Built-in Effect 7"
+            },
+            {
+              "key": "effect:7",
+              "value": "Built-in Effect 8"
+            },
+            {
+              "key": "effect:8",
+              "value": "Built-in Effect 9"
+            },
+            {
+              "key": "effect:9",
+              "value": "Built-in Effect 10"
+            },
+            {
+              "key": "effect:10",
+              "value": "Built-in Effect 11"
+            },
+            {
+              "key": "effect:11",
+              "value": "Built-in Effect 12"
+            },
+            {
+              "key": "effect:12",
+              "value": "Built-in Effect 13"
+            },
+            {
+              "key": "effect:13",
+              "value": "Built-in Effect 14"
+            },
+            {
+              "key": "effect:14",
+              "value": "Built-in Effect 15"
+            }
+          ],
+          "supportedValues": "supportedEffects.value",
+          "argumentType": "string"
+        },
+        "state": {
+          "value": "selectedEffect.value",
+          "valueType": "string",
+          "alternatives": [
+            {
+              "key": "movie:0",
+              "value": "Custom Effect 1"
+            },
+            {
+              "key": "movie:1",
+              "value": "Custom Effect 2"
+            },
+            {
+              "key": "movie:2",
+              "value": "Custom Effect 3"
+            },
+            {
+              "key": "movie:3",
+              "value": "Custom Effect 4"
+            },
+            {
+              "key": "movie:4",
+              "value": "Custom Effect 5"
+            },
+            {
+              "key": "movie:5",
+              "value": "Custom Effect 6"
+            },
+            {
+              "key": "movie:6",
+              "value": "Custom Effect 7"
+            },
+            {
+              "key": "movie:7",
+              "value": "Custom Effect 8"
+            },
+            {
+              "key": "movie:8",
+              "value": "Custom Effect 9"
+            },
+            {
+              "key": "movie:9",
+              "value": "Custom Effect 10"
+            },
+            {
+              "key": "movie:10",
+              "value": "Custom Effect 11"
+            },
+            {
+              "key": "movie:11",
+              "value": "Custom Effect 12"
+            },
+            {
+              "key": "movie:12",
+              "value": "Custom Effect 13"
+            },
+            {
+              "key": "movie:13",
+              "value": "Custom Effect 14"
+            },
+            {
+              "key": "movie:14",
+              "value": "Custom Effect 15"
+            },
+            {
+              "key": "movie:15",
+              "value": "Custom Effect 16"
+            },
+            {
+              "key": "effect:0",
+              "value": "Built-in Effect 1"
+            },
+            {
+              "key": "effect:1",
+              "value": "Built-in Effect 2"
+            },
+            {
+              "key": "effect:2",
+              "value": "Built-in Effect 3"
+            },
+            {
+              "key": "effect:3",
+              "value": "Built-in Effect 4"
+            },
+            {
+              "key": "effect:4",
+              "value": "Built-in Effect 5"
+            },
+            {
+              "key": "effect:5",
+              "value": "Built-in Effect 6"
+            },
+            {
+              "key": "effect:6",
+              "value": "Built-in Effect 7"
+            },
+            {
+              "key": "effect:7",
+              "value": "Built-in Effect 8"
+            },
+            {
+              "key": "effect:8",
+              "value": "Built-in Effect 9"
+            },
+            {
+              "key": "effect:9",
+              "value": "Built-in Effect 10"
+            },
+            {
+              "key": "effect:10",
+              "value": "Built-in Effect 11"
+            },
+            {
+              "key": "effect:11",
+              "value": "Built-in Effect 12"
+            },
+            {
+              "key": "effect:12",
+              "value": "Built-in Effect 13"
+            },
+            {
+              "key": "effect:13",
+              "value": "Built-in Effect 14"
+            },
+            {
+              "key": "effect:14",
+              "value": "Built-in Effect 15"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "automation": {
+    "conditions": [],
+    "actions": []
+  },
+  "id": "voicetiger23642.twinklyEffect",
+  "version": 1
+}

@@ -58,7 +58,8 @@ function M.scan(driver, create_devices)
     udp:settimeout(math.max(0, deadline - socket.gettime()))
     local data, ip = udp:receivefrom()
     if not data then break end
-    if #data >= 7 and data:sub(5, 6) == "yu" and not seen[ip] then
+    local signature = #data >= 7 and data:sub(5, 6)
+    if (signature == "OK" or signature == "yu") and not seen[ip] then
       seen[ip] = true
       local info = api.gestalt(ip)
       local id = network_id(info)

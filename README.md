@@ -24,18 +24,12 @@ The IP address preference also provides a manual override for discovered devices
 
 ## Scenes and presets
 
-Open the device's **Settings → Scene** field in SmartThings. Enter one of these values and save:
+The device detail view has an **Effect** list. Custom Effect 1–16 correspond to Twinkly's saved movie slots 0–15; Built-in Effect 1–15 correspond to the built-in IDs 0–14. The driver sends `supportedValues` from the light's current `/xled/v1/movies` entries and `/xled/v1/led/effects` count, so unavailable slots are hidden. The list is refreshed on device initialization and each poll (60 seconds by default), or by using Refresh. Its labels identify slots rather than Twinkly movie names, which can be changed in the Twinkly app. If a movie is reordered, its list number changes with its slot; the driver keeps its stable UUID for on/off restoration. The movie API requires firmware 2.5.6 or newer.
 
-- `demo` cycles through the built-in effects.
-- `effect:0` plays built-in effect 0; replace 0 with another available numeric ID.
-- `movie:Snow` plays a saved movie by its exact name in the Twinkly app. `movie:2` also works when its numeric ID is known.
+A choice is validated against the light again before activation. An unavailable or stale choice leaves its current state unchanged. The custom capability and list presentation are registered under `voicetiger23642.twinklyEffect`; their source is in `integration/`. An existing stored scene remains available for on/off restoration even though the old Scene text preference is no longer shown.
 
-The driver reads the device's effect count or movie list before selecting a scene. An unavailable or ambiguous value entered in Settings leaves the current light state unchanged. If the light is temporarily unreachable, the choice is retained and retried after a successful refresh or on command. An explicit Off or color command cancels that pending choice. Twinkly's effects API exposes IDs but no names; movie names must match exactly and be unique. The driver remembers each effect's or movie's `unique_id` when available, so reordering does not change which one on/off restores. If a previously saved scene is deleted, **On** starts demo mode. A color command supersedes the current scene. The `movie` API requires firmware 2.5.6 or newer.
-
-SmartThings device Settings is the working scene control in this release. A named picker in the device detail view would require a registered custom capability and presentation in the owner's SmartThings account; that work is tracked in [ROADMAP.md](ROADMAP.md).
-
-Devices and firmware differ. This code has automated tests with mocked transport but has not been validated against a physical Twinkly or SmartThings hub in this workspace. Use `smartthings edge:drivers:logcat` to inspect hardware failures.
+The driver API has also been exercised directly against a Twinkly TWKP200RGB on firmware 2.9.1 at `192.168.87.32`: brightness readback matched 1, 50 and 100 percent; color, built-in effects and saved movies selected successfully; and a stale authentication token recovered after another client logged in. The light was restored to its original effect, brightness and stored color after testing. Discovery and command behavior on a SmartThings hub, the app UI, and visual LED output remain to be checked. Use `smartthings edge:drivers:logcat` to inspect hub-side failures.
 
 ## Development
 
-Run `npm test` for mocked protocol, discovery and command tests. `npm run build` uses the SmartThings CLI to create `.stedge/twinkly-edge.zip` locally. Uploading and assigning a driver version is a separate release step.
+Run `npm test` for mocked protocol, discovery and command tests. `npm run build` uses the SmartThings CLI to create `.stedge/twinkly-edge.zip` locally. Uploading and assigning a driver version is a separate release step. The custom capability must be accessible to the account that packages the driver.

@@ -3,10 +3,55 @@ local M = {}
 local MODE = "/xled/v1/led/mode"
 local EFFECTS = "/xled/v1/led/effects"
 local MOVIES = "/xled/v1/movies"
+local MOVIE_CURRENT = "/xled/v1/movies/current"
+local LEGACY_MOVIE_CURRENT = "/xled/v1/led/movies/current"
+
+local function movie_current(call, method, payload)
+  local result, err = call(MOVIE_CURRENT, method, payload)
+  if not result and err == "HTTP 404" then
+    return call(LEGACY_MOVIE_CURRENT, method, payload)
+  end
+  return result, err
+end
 
 local function valid_uuid(value)
   return type(value) == "string" and #value == 36 and
     value:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
+end
+
+function M.supported_movies(call)
+  local available, err = call(MOVIES)
+  if not available then return nil, err end
+  if type(available.movies) ~= "table" then return nil, "Invalid movies list" end
+  local ids, seen = {}, {}
+  for _, movie in ipairs(available.movies) do
+    local id = type(movie) == "table" and movie.id
+    if type(id) ~= "number" or id < 0 or id > 15 or id % 1 ~= 0 or seen[id] then
+      return nil, "Invalid movie ID"
+    end
+    seen[id] = true
+    ids[#ids + 1] = id
+  end
+  table.sort(ids)
+  local supported = {}
+  for _, id in ipairs(ids) do supported[#supported + 1] = tostring(id) end
+  return supported
+end
+
+function M.supported_choices(call)
+  local movies, movie_err = M.supported_movies(call)
+  if not movies and movie_err == "HTTP 404" then movies = {} end
+  if not movies then return nil, movie_err end
+  local effects, effect_err = call(EFFECTS)
+  if not effects then return nil, effect_err end
+  local count = effects.effects_number
+  if type(count) ~= "number" or count < 0 or count > 15 or count % 1 ~= 0 then
+    return nil, "Invalid effects count"
+  end
+  local choices = {}
+  for _, id in ipairs(movies) do choices[#choices + 1] = "movie:" .. id end
+  for id = 0, count - 1 do choices[#choices + 1] = "effect:" .. id end
+  return choices
 end
 
 function M.parse(value)
@@ -33,19 +78,24 @@ function M.current(call, mode)
   if mode == "effect" then
     path, key = EFFECTS .. "/current", "effect_id"
   elseif mode == "movie" then
-    path, key = "/xled/v1/led/movies/current", "id"
+    key = "id"
   else
     return nil
   end
-  local result = call(path)
+  local result
+  if mode == "movie" then result = movie_current(call) else result = call(path) end
   local id = result and result[key]
+  if mode == "effect" and type(id) ~= "number" then
+    id = result and result.preset_id
+  end
   if type(id) == "number" and id >= 0 and id % 1 == 0 then
-    if valid_uuid(result.unique_id) then return mode .. "@" .. result.unique_id end
+    local choice = mode .. ":" .. id
+    if valid_uuid(result.unique_id) then return mode .. "@" .. result.unique_id, choice end
     if mode == "movie" and type(result.name) == "string" and result.name ~= "" and
       not result.name:match("^%d+$") then
-      return "movie:" .. result.name
+      return "movie:" .. result.name, choice
     end
-    return mode .. ":" .. id
+    return choice, choice
   end
   return nil
 end
@@ -106,7 +156,7 @@ function M.activate(call, value)
     selected_id % 1 ~= 0 then return nil, "Invalid movie ID", "invalid" end
   local canonical = "movie:" .. selected_id
   if valid_uuid(selected.unique_id) then canonical = "movie@" .. selected.unique_id end
-  local selected, select_err = call("/xled/v1/led/movies/current", "POST", { id = selected_id })
+  local selected, select_err = movie_current(call, "POST", { id = selected_id })
   if not selected then return nil, select_err, "uncertain" end
   local result, mode_err = call(MODE, "POST", { mode = "movie" })
   if not result then return nil, mode_err, "uncertain" end

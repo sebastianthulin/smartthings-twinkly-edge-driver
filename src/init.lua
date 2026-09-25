@@ -4,6 +4,7 @@ local api = require "twinkly.api"
 local discovery = require "twinkly.discovery"
 local scenes = require "twinkly.scenes"
 local log = require "log"
+local effect_cap = caps["voicetiger23642.twinklyEffect"]
 
 local MODE = "/xled/v1/led/mode"
 local BRIGHTNESS = "/xled/v1/led/out/brightness"
@@ -76,15 +77,33 @@ local function refresh(driver, device)
     device:set_field("desired_color", nil)
   end
   remember_mode(device, mode.mode)
+  local current_choice
   if mode.mode == "demo" or mode.mode == "effect" or mode.mode == "movie" then
-    local scene = scenes.current(function(path, method, payload)
+    local scene, choice = scenes.current(function(path, method, payload)
       return invoke(device, path, method, payload)
     end, mode.mode)
+    current_choice = choice
     if scene and device:get_field("last_scene") ~= scene then
       device:set_field("last_scene", scene, { persist = true })
     end
   elseif mode.mode == "color" and device:get_field("last_scene") then
     device:set_field("last_scene", nil, { persist = true })
+  end
+  if effect_cap then
+    local choices = scenes.supported_choices(function(path, method, payload)
+      return invoke(device, path, method, payload)
+    end)
+    if choices then
+      local signature = table.concat(choices, "\0")
+      if device:get_field("supported_effect_choices") ~= signature then
+        device:set_field("supported_effect_choices", signature)
+        device:emit_event(effect_cap.supportedEffects(choices))
+      end
+    end
+    if current_choice and device:get_field("selected_effect_choice") ~= current_choice then
+      device:set_field("selected_effect_choice", current_choice)
+      device:emit_event(effect_cap.selectedEffect(current_choice))
+    end
   end
   device:emit_event(mode.mode == "off" and caps.switch.switch.off() or caps.switch.switch.on())
   if device.profile.name == "twinkly-color-light" or device.profile.name == "twinkly-dimmer" then
@@ -159,6 +178,19 @@ local function activate_scene(driver, device, scene)
   end
   device:emit_event(caps.switch.switch.on())
   return true
+end
+
+local function select_effect(driver, device, command)
+  local choice = command and command.args and command.args.effect
+  if type(choice) ~= "string" or not
+    (choice:match("^movie:%d+$") or choice:match("^effect:%d+$")) then return end
+  cancel_color(driver, device)
+  cancel_level(driver, device)
+  device:set_field("pending_scene", nil, { persist = true })
+  if activate_scene(driver, device, choice) then
+    device:set_field("selected_effect_choice", choice)
+    device:emit_event(effect_cap.selectedEffect(choice))
+  end
 end
 
 local function poll(driver, device)
@@ -405,5 +437,6 @@ Driver("twinkly", {
       [caps.colorControl.commands.setSaturation.NAME] = set_saturation,
     },
     [caps.refresh.ID] = { [caps.refresh.commands.refresh.NAME] = poll },
+    [effect_cap.ID] = { [effect_cap.commands.setEffect.NAME] = select_effect },
   },
 }):run()

@@ -18,6 +18,12 @@ local caps = {
     commands = { setColor = { NAME = "setColor" }, setHue = { NAME = "setHue" },
       setSaturation = { NAME = "setSaturation" } } },
   refresh = { ID = "refresh", commands = { refresh = { NAME = "refresh" } } },
+  ["voicetiger23642.twinklyEffect"] = {
+    ID = "voicetiger23642.twinklyEffect",
+    selectedEffect = function(value) return { value = value, selector = "selected" } end,
+    supportedEffects = function(value) return { value = value, selector = "supported" } end,
+    commands = { setEffect = { NAME = "setEffect" } },
+  },
 }
 package.loaded["st.capabilities"] = caps
 setmetatable(caps.colorControl.hue, { __call = function(_, value) return attr(value) end })
@@ -46,7 +52,7 @@ package.loaded["twinkly.api"] = {
     if fail or ip == "192.168.1.99" then return nil, "timeout" end
     if fail_movie_mode and path == "/xled/v1/led/mode" and method == "POST" and
       payload.mode == "movie" then return nil, "timeout" end
-    if fail_current_movie and path == "/xled/v1/led/movies/current" and method ~= "POST" then
+    if fail_current_movie and path == "/xled/v1/movies/current" and method ~= "POST" then
       return nil, "timeout"
     end
     if path:find("mode") and method ~= "POST" then return { mode = mode_value } end
@@ -54,7 +60,7 @@ package.loaded["twinkly.api"] = {
     if path == "/xled/v1/movies" then
       return { movies = movie_exists and { { id = 2, name = "Snow", unique_id = movie_uuid } } or {} }
     end
-    if path == "/xled/v1/led/movies/current" and method ~= "POST" then
+    if path == "/xled/v1/movies/current" and method ~= "POST" then
       return { id = 2, name = "Snow", unique_id = movie_uuid }
     end
     if path:find("brightness") and method ~= "POST" then
@@ -80,6 +86,7 @@ package.loaded["twinkly.discovery"] = {
 require "init"
 assert(template.lifecycle_handlers.added == nil, "SmartThings invokes init after added")
 local events = {}
+local effect_events = {}
 local switch_state
 fields = {}
 local device = {
@@ -87,6 +94,7 @@ local device = {
   get_field = function(_, key) return fields[key] end,
   set_field = function(_, key, value) fields[key] = value end,
   emit_event = function(_, event)
+    if event.selector then effect_events[#effect_events + 1] = event; return end
     events[#events + 1] = event.value
     if event.value == "on" or event.value == "off" then switch_state = event.value end
   end,
@@ -133,6 +141,16 @@ template.lifecycle_handlers.init(driver, device)
 assert(fields.ipAddress == "192.168.1.2")
 assert(events[1] == "on" and events[2] == 42)
 assert(scheduled == 1)
+assert(effect_events[1].selector == "supported" and
+  effect_events[1].value[1] == "movie:2" and
+  effect_events[1].value[2] == "effect:0" and
+  effect_events[1].value[6] == "effect:4" and
+  effect_events[2].selector == "selected" and effect_events[2].value == "movie:2",
+  "the selector must publish current movie slots and built-in effects")
+local effect_events_before_refresh = #effect_events
+template.capability_handlers.refresh.refresh(driver, device)
+assert(#effect_events == effect_events_before_refresh,
+  "unchanged supported values must not be emitted on every poll")
 local before = #events
 fail = true
 local calls_before = #calls
@@ -325,8 +343,25 @@ assert(fields.last_scene == "effect:2")
 device.preferences.scene = "movie:2"
 template.lifecycle_handlers.infoChanged(driver, device, nil,
   { old_st_store = { preferences = { pollInterval = 120, scene = "movie:3" } } })
-assert(calls[#calls - 1].path == "/xled/v1/led/movies/current")
+assert(calls[#calls - 1].path == "/xled/v1/movies/current")
 assert(calls[#calls].payload.mode == "movie" and fields.last_scene == "movie@" .. movie_uuid)
+template.capability_handlers["voicetiger23642.twinklyEffect"].setEffect(driver, device,
+  { args = { effect = "movie:2" } })
+assert(calls[#calls - 1].path == "/xled/v1/movies/current" and
+  calls[#calls - 1].payload.id == 2 and calls[#calls].payload.mode == "movie" and
+  effect_events[#effect_events].value == "movie:2",
+  "selecting a visible custom effect must activate its current slot")
+local calls_before_invalid_choice = #calls
+template.capability_handlers["voicetiger23642.twinklyEffect"].setEffect(driver, device,
+  { args = { effect = "movie:99" } })
+assert(#calls == calls_before_invalid_choice,
+  "a stale or invalid choice must not be sent to the light")
+device.preferences.scene = "movie@" .. movie_uuid
+template.lifecycle_handlers.infoChanged(driver, device, nil,
+  { old_st_store = { preferences = { pollInterval = 120, scene = "movie:2" } } })
+assert(calls[#calls - 1].path == "/xled/v1/movies/current" and
+  calls[#calls - 1].payload.id == 2 and calls[#calls].payload.mode == "movie",
+  "a UUID scene selection must resolve the movie's current slot")
 fail_current_movie = true
 template.capability_handlers.refresh.refresh(driver, device)
 assert(fields.last_scene == "movie@" .. movie_uuid,
@@ -335,7 +370,7 @@ fail_current_movie = false
 device.preferences.scene = "movie:Snow"
 fail_movie_mode = true
 template.lifecycle_handlers.infoChanged(driver, device, nil,
-  { old_st_store = { preferences = { pollInterval = 120, scene = "movie:2" } } })
+  { old_st_store = { preferences = { pollInterval = 120, scene = "movie@" .. movie_uuid } } })
 assert(fields.last_scene == "movie@" .. movie_uuid and calls[#calls].path == "/xled/v1/led/out/brightness",
   "partial movie change must refresh actual state")
 fail_movie_mode = false
@@ -343,6 +378,11 @@ movie_exists = false
 template.capability_handlers.switch.on(driver, device)
 assert(fields.last_scene == "demo" and calls[#calls].payload.mode == "demo",
   "deleted saved movie must fall back to demo on switch-on")
+template.capability_handlers.refresh.refresh(driver, device)
+local filtered = effect_events[#effect_events]
+assert(filtered.selector == "supported" and #filtered.value == 5 and
+  filtered.value[1] == "effect:0" and filtered.value[5] == "effect:4",
+  "removed movies must disappear from the supported list")
 device.preferences.ipAddress = "192.168.1.50"
 template.lifecycle_handlers.infoChanged(driver, device, nil,
   { old_st_store = { preferences = { pollInterval = 120, scene = "movie:Snow" } } })

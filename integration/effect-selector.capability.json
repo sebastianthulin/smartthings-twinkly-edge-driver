@@ -1,0 +1,52 @@
+{
+  "name": "Twinkly Effect",
+  "attributes": {
+    "selectedEffect": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ]
+      },
+      "setter": "setEffect"
+    },
+    "supportedEffects": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 31
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ]
+      }
+    }
+  },
+  "commands": {
+    "setEffect": {
+      "name": "setEffect",
+      "arguments": [
+        {
+          "name": "effect",
+          "optional": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  }
+}

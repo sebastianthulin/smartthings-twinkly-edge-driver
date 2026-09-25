@@ -9,20 +9,12 @@ components:
         version: 1
       - id: refresh
         version: 1
+      - id: voicetiger23642.twinklyEffect
+        version: 1
     categories:
       - name: Light
 
 preferences:
-  - name: scene
-    title: Scene
-    description: "Enter demo, effect:N, movie:N or movie:Name"
-    required: false
-    preferenceType: string
-    definition:
-      stringType: text
-      default: ""
-      minLength: 0
-      maxLength: 64
   - name: ipAddress
     title: Device IP Address
     description: Optional manual IP override; leave at 0.0.0.0 for discovery

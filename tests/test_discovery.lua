@@ -1,6 +1,6 @@
 package.loaded["twinkly.discovery"] = nil
 local replies = {
-  { "\1\2\3\4yuabc\0", "192.168.1.2" },
+  { "\32\87\168\192OKTwinkly_9C76A9\0", "192.168.1.2" },
   { "\1\2\3\4yuabc\0", "192.168.1.2" },
   { "garbage", "192.168.1.3" },
 }
